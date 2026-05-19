@@ -6,11 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { X, ChevronLeft, ChevronRight, ShoppingCart, Zap, Eye, Star } from "lucide-react";
 import { useCartStore } from "@/store/useCartStore";
+import { formatProductPrice, getNumericPrice } from "@/lib/price";
 
 export interface GalleryProduct {
   id: string;
   name: string;
-  price: number;
+  price: number | string | null;
   original_price?: number | null;
   image_url?: string | null;
   slug?: string | null;
@@ -62,10 +63,12 @@ export function Gallery({ items }: GalleryProps) {
   const active = activeIndex !== null ? items[activeIndex] : null;
 
   const handleAddToCart = (product: GalleryProduct) => {
+    const price = getNumericPrice(product.price);
+    if (price === null) return;
     addItem({
       id: product.id,
       name: product.name,
-      price: Number(product.price) || 0,
+      price,
       oldPrice: product.original_price ? Number(product.original_price) : null,
       image: product.image_url || "/cat-tu.png",
     });
@@ -73,10 +76,12 @@ export function Gallery({ items }: GalleryProps) {
   };
 
   const handleBuyNow = (product: GalleryProduct) => {
+    const price = getNumericPrice(product.price);
+    if (price === null) return;
     addItem({
       id: product.id,
       name: product.name,
-      price: Number(product.price) || 0,
+      price,
       oldPrice: product.original_price ? Number(product.original_price) : null,
       image: product.image_url || "/cat-tu.png",
     });
@@ -112,7 +117,7 @@ export function Gallery({ items }: GalleryProps) {
               )}
               {item.product && (
                 <p className="text-blue-200 text-xs font-bold drop-shadow">
-                  {Number(item.product.price).toLocaleString("vi-VN")}đ
+                  {formatProductPrice(item.product.price)}
                 </p>
               )}
               <span className="text-xs text-white/70 inline-flex items-center gap-1 mt-1">
@@ -178,10 +183,11 @@ export function Gallery({ items }: GalleryProps) {
               />
               {/* Discount badge */}
               {active.product?.original_price &&
-                Number(active.product.original_price) > Number(active.product.price) && (
+                getNumericPrice(active.product.price) !== null &&
+                Number(active.product.original_price) > getNumericPrice(active.product.price)! && (
                   <div className="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow">
                     -{Math.round(
-                      (1 - Number(active.product.price) / Number(active.product.original_price)) * 100
+                      (1 - getNumericPrice(active.product.price)! / Number(active.product.original_price)) * 100
                     )}%
                   </div>
                 )}
@@ -192,7 +198,7 @@ export function Gallery({ items }: GalleryProps) {
             </div>
 
             {/* Thông tin sản phẩm */}
-            <div className="flex-1 flex flex-col overflow-y-auto p-5 sm:p-7">
+            <div className="flex-1 flex min-w-0 flex-col overflow-y-auto p-4 sm:p-7">
               {/* Tên sản phẩm */}
               {active.title && (
                 <h3 className="text-lg sm:text-xl font-bold text-slate-900 leading-snug mb-2">
@@ -211,23 +217,25 @@ export function Gallery({ items }: GalleryProps) {
               {/* Giá */}
               {active.product && (
                 <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 mb-4">
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-2xl font-black text-blue-700">
-                      {Number(active.product.price).toLocaleString("vi-VN")}đ
+                  <div className="flex flex-wrap items-baseline gap-2 sm:gap-3">
+                    <span className="text-xl sm:text-2xl font-black text-blue-700">
+                      {formatProductPrice(active.product.price)}
                     </span>
                     {active.product.original_price &&
-                      Number(active.product.original_price) > Number(active.product.price) && (
+                      getNumericPrice(active.product.price) !== null &&
+                      Number(active.product.original_price) > getNumericPrice(active.product.price)! && (
                         <span className="text-sm text-slate-400 line-through">
                           {Number(active.product.original_price).toLocaleString("vi-VN")}đ
                         </span>
                       )}
                   </div>
                   {active.product.original_price &&
-                    Number(active.product.original_price) > Number(active.product.price) && (
+                    getNumericPrice(active.product.price) !== null &&
+                    Number(active.product.original_price) > getNumericPrice(active.product.price)! && (
                       <p className="text-xs text-green-600 font-medium mt-1">
                         Tiết kiệm{" "}
                         {(
-                          Number(active.product.original_price) - Number(active.product.price)
+                          Number(active.product.original_price) - getNumericPrice(active.product.price)!
                         ).toLocaleString("vi-VN")}đ
                       </p>
                     )}
@@ -254,12 +262,13 @@ export function Gallery({ items }: GalleryProps) {
                     Xem chi tiết sản phẩm
                   </Link>
 
-                  <div className="grid grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {/* Thêm vào giỏ */}
                     <button
                       type="button"
                       onClick={() => handleAddToCart(active.product!)}
-                      className="py-3 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-sm flex items-center justify-center gap-1.5 transition-colors"
+                      disabled={getNumericPrice(active.product.price) === null}
+                      className="py-3 px-3 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-slate-100 text-slate-800 font-semibold rounded-xl text-sm flex items-center justify-center gap-1.5 transition-colors"
                     >
                       <ShoppingCart className="w-4 h-4" />
                       Vào giỏ hàng
@@ -269,7 +278,8 @@ export function Gallery({ items }: GalleryProps) {
                     <button
                       type="button"
                       onClick={() => handleBuyNow(active.product!)}
-                      className="py-3 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-1.5 shadow-md shadow-blue-200/60 transition-all hover:-translate-y-0.5"
+                      disabled={getNumericPrice(active.product.price) === null}
+                      className="py-3 px-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-1.5 shadow-md shadow-blue-200/60 transition-all hover:-translate-y-0.5 disabled:hover:translate-y-0"
                     >
                       <Zap className="w-4 h-4 fill-current" />
                       Mua ngay

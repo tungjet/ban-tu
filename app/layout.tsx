@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { Inter } from "next/font/google";
 import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
 import { FooterClient } from "@/components/FooterClient";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin", "vietnamese"],
+  display: "swap",
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://noithatgiare.shop'),
@@ -32,17 +39,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900 font-sans">
-
-        {/* Navbar */}
+      <body className={`${inter.variable} font-sans min-h-full flex flex-col bg-slate-50 text-slate-900`}>
         <Suspense fallback={<div className="h-16 border-b border-slate-200 bg-white" />}>
           <Header />
         </Suspense>
-
-        {/* Cart Drawer */}
         <CartDrawer />
-
-        {/* Global Toast Notifications */}
         <Toaster
           position="top-center"
           toastOptions={{
@@ -61,15 +62,10 @@ export default function RootLayout({
             },
           }}
         />
-
-        {/* Main Content */}
         <div className="flex-1 w-full">
           {children}
         </div>
-
-        {/* Footer + Floating Buttons (client component dùng settings từ DB) */}
         <FooterClient />
-
       </body>
     </html>
   );

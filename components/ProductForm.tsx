@@ -25,10 +25,51 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 
+function RequiredMark() {
+  return <span className="text-red-500">*</span>;
+}
+
+function ImagePreviewModal({
+  image,
+  onClose,
+}: {
+  image: { src: string; title?: string } | null;
+  onClose: () => void;
+}) {
+  if (!image) return null;
+
+  return (
+    <div className="fixed inset-0 z-[999] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-slate-900 truncate">{image.title || "Xem ảnh"}</h3>
+            <p className="text-xs text-slate-500">Ảnh preview kích thước lớn</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="bg-slate-100 p-3 sm:p-5 overflow-auto flex-1">
+          <img
+            src={image.src}
+            alt={image.title || "Preview"}
+            className="mx-auto max-h-[78vh] max-w-full rounded-xl object-contain shadow-sm bg-white"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface Product {
   id: string | number;
   name: string;
-  price: number | string;
+  price: number | string | null;
   original_price?: number | string | null;
   description?: string | null;
   image_url?: string | null;
@@ -58,6 +99,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
   const [isSaving, setIsSaving] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [imagePreviewModal, setImagePreviewModal] = useState<{ src: string; title?: string } | null>(null);
 
   const formatPriceInput = (value: string) => {
     const digits = value.replace(/\D/g, "");
@@ -78,6 +120,8 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
     slug: "",
     is_published: true,
   });
+
+  const selectedCategoryExists = categories.some((cat) => String(cat.id) === form.category_id);
 
   // Setup TipTap Editor
   const editor = useEditor({
@@ -210,8 +254,8 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
   // Handle Form Submission (Add or Edit)
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.price) {
-      toast.error("Vui lòng nhập đầy đủ Tên sản phẩm và Giá bán!");
+    if (!form.name.trim()) {
+      toast.error("Vui lòng nhập Tên sản phẩm!");
       return;
     }
     setIsSaving(true);
@@ -256,7 +300,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
 
       const ratingValue = form.rating ? Number(form.rating) : null;
       const soldValue = Number(form.sold) || 0;
-      const priceValue = Number(form.price.replace(/,/g, ""));
+      const priceValue = form.price ? Number(form.price.replace(/,/g, "")) : null;
       const originalPriceValue = form.original_price
         ? Number(form.original_price.replace(/,/g, ""))
         : null;
@@ -268,7 +312,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
         description: form.description,
         image_url: allImages[0] || "",
         images: allImages,
-        category_id: form.category_id ? Number(form.category_id) : null,
+        category_id: form.category_id || null,
         features: cleanFeatures,
         rating: ratingValue,
         sold: soldValue,
@@ -307,6 +351,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <ImagePreviewModal image={imagePreviewModal} onClose={() => setImagePreviewModal(null)} />
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-linear-to-r from-blue-50/50 to-white">
         <div className="flex items-center gap-3">
@@ -356,7 +401,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           {/* Left Column: Product Information (2/3) */}
           <div className="lg:col-span-2 space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Tên sản phẩm *</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Tên sản phẩm <RequiredMark /></label>
               <input
                 type="text"
                 required
@@ -369,10 +414,9 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Giá bán (VNĐ) *</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Giá bán (VNĐ)</label>
                 <input
                   type="text"
-                  required
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: formatPriceInput(e.target.value) })}
                   placeholder="Ví dụ: 3,500,000"
@@ -400,7 +444,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Danh mục *</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Danh mục <RequiredMark /></label>
                 <select
                   required
                   value={form.category_id}
@@ -408,6 +452,11 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 text-sm bg-white"
                 >
                   <option value="">-- Chọn danh mục --</option>
+                  {form.category_id && !selectedCategoryExists && (
+                    <option value={form.category_id}>
+                      Danh mục hiện tại ({form.category_id})
+                    </option>
+                  )}
                   {categories.map((cat) => (
                     <option key={cat.id} value={String(cat.id)}>
                       {cat.name}
@@ -558,7 +607,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           {/* Right Column: Image Selection (1/3) */}
           <div className="lg:col-span-1 space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Hình ảnh sản phẩm *</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Hình ảnh sản phẩm <RequiredMark /></label>
               <div className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center transition-colors cursor-pointer bg-slate-50 h-[200px] flex flex-col items-center justify-center relative">
                 <input
                   type="file"
@@ -584,12 +633,17 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
                     {imagePreviews.map((src, idx) => (
                       <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 shadow-xs group bg-slate-50">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setImagePreviewModal({ src, title: `Ảnh sản phẩm ${idx + 1}` })}
+                          className="w-full h-full cursor-zoom-in"
+                        >
+                          <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => removeImage(idx)}
-                          className="absolute inset-0 bg-red-500/70 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          className="absolute top-1.5 right-1.5 w-8 h-8 rounded-full bg-red-500/90 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>

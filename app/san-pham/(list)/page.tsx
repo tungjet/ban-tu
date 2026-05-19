@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { ProductActions } from "@/components/ProductActions";
 import { supabase } from "@/lib/supabase";
 import { CardFavoriteButton } from "@/components/CardFavoriteButton";
+import { formatProductPrice, getNumericPrice } from "@/lib/price";
 
 const PRICE_RANGES = [
   { id: "all", label: "Tất cả mức giá", min: 0, max: Infinity },
@@ -24,7 +25,7 @@ function ProductListingContent() {
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || "");
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || "all");
   const [selectedPrice, setSelectedPrice] = useState("all");
-  const [products, setProducts] = useState<{ id: string; name: string; price: string; image_url?: string; slug?: string; original_price?: string; created_at: string; category_id?: string }[]>([]);
+  const [products, setProducts] = useState<{ id: string; name: string; price: string | number | null; image_url?: string; slug?: string; original_price?: string | number | null; created_at: string; category_id?: string }[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
 
   // Sync search and category from URL
@@ -59,8 +60,8 @@ function ProductListingContent() {
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = activeCatId === "all" || p.category_id === activeCatId;
-    const price = Number(p.price) || 0;
-    const matchesPrice = price >= priceRange.min && price < priceRange.max;
+    const price = getNumericPrice(p.price);
+    const matchesPrice = selectedPrice === "all" || (price !== null && price >= priceRange.min && price < priceRange.max);
     return matchesSearch && matchesCategory && matchesPrice;
   });
 
@@ -70,9 +71,9 @@ function ProductListingContent() {
       case "moinhat":
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       case "giathapcao":
-        return Number(a.price) - Number(b.price);
+        return (getNumericPrice(a.price) ?? Infinity) - (getNumericPrice(b.price) ?? Infinity);
       case "giacaothap":
-        return Number(b.price) - Number(a.price);
+        return (getNumericPrice(b.price) ?? -Infinity) - (getNumericPrice(a.price) ?? -Infinity);
       default:
         return 0;
     }
@@ -122,7 +123,7 @@ function ProductListingContent() {
                 onClick={() => setSelectedCategory(cat.slug || cat.id)}
                 className="w-full flex items-center gap-3 cursor-pointer group text-left"
               >
-                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 group-hover:border-blue-500'}`}>
+                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 group-hover:border-blue-500'}`}>
                   {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
                 </div>
                 <span className={`text-sm transition-colors ${isSelected ? 'text-blue-600 font-medium' : 'text-slate-600 group-hover:text-blue-600'}`}>
@@ -144,7 +145,7 @@ function ProductListingContent() {
               onClick={() => setSelectedPrice(range.id)}
               className="w-full flex items-center gap-3 cursor-pointer group text-left"
             >
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selectedPrice === range.id ? 'border-blue-600' : 'border-slate-300 group-hover:border-blue-500'}`}>
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${selectedPrice === range.id ? 'border-blue-600' : 'border-slate-300 group-hover:border-blue-500'}`}>
                 {selectedPrice === range.id && <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />}
               </div>
               <span className={`text-sm transition-colors ${selectedPrice === range.id ? 'text-blue-600 font-medium' : 'text-slate-600 group-hover:text-blue-600'}`}>
@@ -174,7 +175,7 @@ function ProductListingContent() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="flex flex-col md:flex-row gap-8">
+        <div className="flex flex-col md:flex-row gap-5 lg:gap-8">
 
           {/* --- SIDEBAR FILTER (Desktop) --- */}
           <aside className="hidden md:block w-64 shrink-0">
@@ -205,7 +206,7 @@ function ProductListingContent() {
           </aside>
 
           {/* --- MAIN CONTENT --- */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {/* Toolbar: Sort & Filter Button (Mobile) */}
             <div className="bg-white rounded-2xl p-3 sm:p-4 mb-4 sm:mb-6 shadow-sm border border-slate-100 flex flex-col gap-3">
 
@@ -253,15 +254,15 @@ function ProductListingContent() {
             </div>
 
             {/* Product Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
               {sortedProducts.map(product => {
-                const price = Number(product.price) || 0;
+                const price = getNumericPrice(product.price);
                 const originalPrice = Number(product.original_price) || 0;
-                const hasDiscount = originalPrice > price;
-                const discountPercent = hasDiscount ? Math.round((1 - price / originalPrice) * 100) : 0;
+                const hasDiscount = price !== null && originalPrice > price;
+                const discountPercent = hasDiscount ? Math.round((1 - price! / originalPrice) * 100) : 0;
 
                 return (
-                  <div key={product.id} className="group border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col">
+                  <div key={product.id} className="group border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex min-w-0 flex-col">
                     <Link href={`/san-pham/${product.slug || product.id}`} className="block relative aspect-4/5 bg-slate-100 overflow-hidden">
                       <Image src={product.image_url || "/placeholder.png"} alt={product.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
                       {hasDiscount && (
@@ -273,7 +274,7 @@ function ProductListingContent() {
                         product={{
                           id: product.id,
                           name: product.name,
-                          price,
+                          price: price ?? 0,
                           oldPrice: hasDiscount ? originalPrice : null,
                           image: product.image_url || "/placeholder.png",
                           slug: product.slug,
@@ -289,14 +290,14 @@ function ProductListingContent() {
                         {product.name}
                       </Link>
 
-                      <div className="mt-auto flex items-end justify-between pt-2">
-                        <div>
-                          <span className="text-red-600 font-bold block text-sm sm:text-base">{price.toLocaleString('vi-VN')}đ</span>
+                      <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+                        <div className="min-w-0">
+                          <span className="text-red-600 font-bold block text-sm sm:text-base leading-tight">{formatProductPrice(product.price)}</span>
                           {hasDiscount && (
                             <span className="text-slate-400 text-[10px] sm:text-xs line-through block">{originalPrice.toLocaleString('vi-VN')}đ</span>
                           )}
                         </div>
-                        <ProductActions product={{ id: product.id, name: product.name, price: Number(product.price), image: product.image_url || "/placeholder.png" }} />
+                        <ProductActions product={{ id: product.id, name: product.name, price, image: product.image_url || "/placeholder.png" }} />
                       </div>
                     </div>
                   </div>

@@ -64,26 +64,27 @@ export function CartDrawer() {
               </div>
               <p className="font-medium text-slate-700">Giỏ hàng của bạn đang trống</p>
               <p className="text-sm">Hãy thêm vài sản phẩm nhé!</p>
-              <button 
+              <Link 
+                href="/san-pham"
                 onClick={() => toggleCart(false)}
-                className="mt-4 px-6 py-2.5 bg-white border border-slate-200 text-blue-600 font-medium rounded-full shadow-sm hover:bg-slate-50 transition-colors"
+                className="mt-4 px-6 py-2.5 bg-white border border-slate-200 text-blue-600 font-medium rounded-full shadow-sm hover:bg-slate-50 transition-colors inline-block"
               >
                 Tiếp tục mua sắm
-              </button>
+              </Link>
             </div>
           ) : (
             <div className="space-y-4">
               {items.map((item) => (
-                <div key={item.id} className="bg-white p-3 rounded-2xl flex gap-4 shadow-sm border border-slate-100 relative group">
+                <div key={item.id} className="bg-white p-3 rounded-2xl flex gap-3 sm:gap-4 shadow-sm border border-slate-100 relative group">
                   {/* Image */}
-                  <div className="w-20 h-20 bg-slate-50 rounded-xl overflow-hidden relative shrink-0">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-50 rounded-xl overflow-hidden relative shrink-0">
                     <Image src={item.image} alt={item.name} fill className="object-cover" />
                   </div>
                   
                   {/* Details */}
-                  <div className="flex-1 flex flex-col">
+                  <div className="flex-1 min-w-0 flex flex-col">
                     <h3 className="text-sm font-medium text-slate-900 line-clamp-2 pr-6">{item.name}</h3>
-                    <div className="mt-1 flex items-center gap-2">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="text-blue-600 font-bold text-sm">{item.price.toLocaleString('vi-VN')}đ</span>
                       {item.oldPrice && (
                         <span className="text-slate-400 text-xs line-through">{item.oldPrice.toLocaleString('vi-VN')}đ</span>

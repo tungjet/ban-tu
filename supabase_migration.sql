@@ -75,6 +75,17 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS rating NUMERIC(3,2) DEFAULT 5.0;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS sold INTEGER DEFAULT 0;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS slug TEXT UNIQUE;
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'products' AND column_name = 'price'
+  ) THEN
+    ALTER TABLE products ALTER COLUMN price DROP NOT NULL;
+  END IF;
+END $$;
+
 
 -- =====================================================
 -- 3. CATEGORIES - thêm display_order để sắp xếp
@@ -208,6 +219,16 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_code TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted_by UUID DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted_by_email TEXT DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'Chưa nhận tiền';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_received_at TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_received_by UUID DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_received_by_email TEXT DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_proof_url TEXT DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_proof_urls JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_note TEXT DEFAULT '';
 
 -- Đảm bảo policy cho phép insert đơn từ trang khách hàng (anon)
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
@@ -308,3 +329,127 @@ UPDATE products SET is_published = true WHERE is_published IS NULL;
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check;
 ALTER TABLE orders ADD CONSTRAINT orders_status_check CHECK (status IN ('Chờ xử lý', 'Đã xác nhận', 'Đang giao', 'Đã hoàn thành', 'Đã huỷ'));
 
+
+-- =====================================================
+-- 12. ORDER LOGS - Lich su thay doi don hang
+-- =====================================================
+CREATE TABLE IF NOT EXISTS order_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id TEXT,
+  order_code TEXT,
+  action TEXT NOT NULL CHECK (action IN ('created', 'status_changed', 'updated', 'deleted', 'merged')),
+  old_status TEXT,
+  new_status TEXT,
+  changed_by UUID,
+  changed_by_email TEXT,
+  snapshot JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_logs_order_id ON order_logs(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_logs_order_code ON order_logs(order_code);
+CREATE INDEX IF NOT EXISTS idx_order_logs_created_at ON order_logs(created_at DESC);
+
+ALTER TABLE order_logs ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE order_logs DROP CONSTRAINT IF EXISTS order_logs_action_check;
+ALTER TABLE order_logs ADD CONSTRAINT order_logs_action_check CHECK (action IN ('created', 'status_changed', 'updated', 'deleted', 'merged'));
+
+DROP POLICY IF EXISTS "Anyone can read order logs" ON order_logs;
+CREATE POLICY "Anyone can read order logs" ON order_logs
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Anyone can insert order logs" ON order_logs;
+DROP POLICY IF EXISTS "Anyone can manage order logs" ON order_logs;
+
+CREATE POLICY "Anyone can insert order logs" ON order_logs
+  FOR INSERT WITH CHECK (true);
+
+CREATE OR REPLACE FUNCTION handle_order_logs()
+RETURNS trigger AS $$
+DECLARE
+  log_action TEXT;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO order_logs (
+      order_id,
+      order_code,
+      action,
+      old_status,
+      new_status,
+      changed_by,
+      changed_by_email,
+      snapshot
+    )
+    VALUES (
+      NEW.id::text,
+      NEW.order_code,
+      'created',
+      NULL,
+      NEW.status,
+      auth.uid(),
+      auth.jwt() ->> 'email',
+      to_jsonb(NEW)
+    );
+    RETURN NEW;
+  ELSIF TG_OP = 'UPDATE' THEN
+    log_action := CASE
+      WHEN OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL THEN 'deleted'
+      WHEN OLD.status IS DISTINCT FROM NEW.status THEN 'status_changed'
+      ELSE 'updated'
+    END;
+
+    INSERT INTO order_logs (
+      order_id,
+      order_code,
+      action,
+      old_status,
+      new_status,
+      changed_by,
+      changed_by_email,
+      snapshot
+    )
+    VALUES (
+      NEW.id::text,
+      COALESCE(NEW.order_code, OLD.order_code),
+      log_action,
+      OLD.status,
+      NEW.status,
+      auth.uid(),
+      auth.jwt() ->> 'email',
+      jsonb_build_object('old', to_jsonb(OLD), 'new', to_jsonb(NEW))
+    );
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    INSERT INTO order_logs (
+      order_id,
+      order_code,
+      action,
+      old_status,
+      new_status,
+      changed_by,
+      changed_by_email,
+      snapshot
+    )
+    VALUES (
+      OLD.id::text,
+      OLD.order_code,
+      'deleted',
+      OLD.status,
+      NULL,
+      auth.uid(),
+      auth.jwt() ->> 'email',
+      to_jsonb(OLD)
+    );
+    RETURN OLD;
+  END IF;
+
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_order_logs ON orders;
+CREATE TRIGGER trg_order_logs
+AFTER INSERT OR UPDATE OR DELETE ON orders
+FOR EACH ROW
+EXECUTE FUNCTION handle_order_logs();

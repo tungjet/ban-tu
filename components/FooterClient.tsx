@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { Phone, MessageCircle, MapPin } from "lucide-react";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
@@ -20,13 +19,6 @@ export function FooterClient() {
       <footer className="w-full bg-slate-900 text-slate-400 py-8 px-4 sm:px-6 lg:px-8 mt-auto">
         <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
           <div className="sm:col-span-2 md:col-span-1">
-            <Image
-              src="/logo.png"
-              alt="Tủ Nhựa Giá Rẻ"
-              width={180}
-              height={56}
-              className="h-10 sm:h-12 w-auto object-contain invert brightness-0 filter mb-3 sm:mb-4"
-            />
             <p className="text-sm leading-relaxed mb-4">
               Giải pháp nội thất thông minh, bền bỉ với thời gian. Chuyên các sản phẩm từ nhựa cao cấp và nhôm kính.
             </p>

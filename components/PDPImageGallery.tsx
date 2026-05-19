@@ -107,12 +107,12 @@ export function PDPImageGallery({ images, productName, discountPercent, hasDisco
       {/* Premium Preview Modal */}
       {isModalOpen && (
         <div 
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-md transition-all duration-300 animate-in fade-in"
+          className="fixed inset-0 z-120 flex flex-col items-center justify-center bg-black/95 backdrop-blur-md transition-all duration-300 animate-in fade-in"
           onClick={() => setIsModalOpen(false)}
         >
           {/* Close button */}
           <button 
-            className="absolute top-4 right-4 z-50 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-200 hover:scale-105 active:scale-95"
+            className="absolute top-4 right-4 z-120 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all duration-200 hover:scale-105 active:scale-95"
             onClick={() => setIsModalOpen(false)}
             aria-label="Đóng"
           >

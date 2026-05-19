@@ -64,17 +64,19 @@ export function useStoreSettings() {
 
   const updateSettings = async (newSettings: StoreSettings): Promise<boolean> => {
     try {
-      const { error } = await supabase
-        .from("store_settings")
-        .upsert({
-          id: "default",
-          ...newSettings,
-          updated_at: new Date().toISOString(),
-        });
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(newSettings),
+      });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error("Failed to update settings");
 
-      // Invalidate cache
       cachedSettings = newSettings;
       cacheTime = Date.now();
       setSettings(newSettings);

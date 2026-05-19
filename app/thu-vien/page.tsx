@@ -23,7 +23,7 @@ export default async function GalleryPage() {
     id: string;
     name: string;
     slug?: string | null;
-    price: number | string;
+    price: number | string | null;
     original_price?: number | string | null;
     image_url?: string | null;
     images?: string[] | null;
@@ -48,7 +48,7 @@ export default async function GalleryPage() {
           id: p.id,
           name: p.name,
           slug: p.slug ?? null,
-          price: Number(p.price),
+          price: p.price ?? null,
           original_price: p.original_price ? Number(p.original_price) : null,
           image_url: p.image_url ?? null,
         },

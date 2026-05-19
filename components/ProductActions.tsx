@@ -9,7 +9,7 @@ interface ProductActionsProps {
   product: {
     id: string | number;
     name: string;
-    price: number;
+    price: number | null;
     oldPrice?: number | null;
     image: string;
   };
@@ -22,28 +22,32 @@ export function ProductActions({ product }: ProductActionsProps) {
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addItem(product);
+    if (product.price === null) return;
+    addItem({ ...product, price: product.price });
   };
 
   const handleBuyNow = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addItem(product);
+    if (product.price === null) return;
+    addItem({ ...product, price: product.price });
     router.push('/thanh-toan');
   };
 
   return (
-    <div className="flex gap-1 sm:gap-2">
+    <div className="flex shrink-0 gap-1 sm:gap-2">
       <button 
         onClick={handleAddToCart}
-        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors shrink-0" 
+        disabled={product.price === null}
+        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-colors shrink-0" 
         title="Thêm vào giỏ"
       >
         <ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4" />
       </button>
       <button 
         onClick={handleBuyNow}
-        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-colors shadow-sm shadow-blue-200 shrink-0" 
+        disabled={product.price === null}
+        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 text-white flex items-center justify-center transition-colors shadow-sm shadow-blue-200 shrink-0" 
         title="Mua ngay"
       >
         <Zap className="w-3 h-3 sm:w-4 sm:h-4 fill-current" />

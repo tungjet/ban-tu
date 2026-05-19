@@ -1,4 +1,4 @@
-import { Star, Check, MessageCircle, Home, User, ThumbsUp } from "lucide-react";
+import { Star, Check, Home, User, ThumbsUp } from "lucide-react";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -11,13 +11,16 @@ import CommentForm from "@/components/CommentForm";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { ProductDescription } from "@/components/ProductDescription";
 import { ProductShareActions } from "@/components/ProductShareActions";
+import { formatProductPrice, getNumericPrice } from "@/lib/price";
+import { ZaloConsultButton } from "@/components/ZaloConsultButton";
+import { ProductAdminEditButton } from "@/components/ProductAdminEditButton";
 
 
 interface ProductRow {
   id: string;
   name: string;
   slug?: string | null;
-  price: number | string;
+  price: number | string | null;
   original_price?: number | string | null;
   description?: string | null;
   image_url?: string | null;
@@ -134,7 +137,7 @@ export default async function ProductDetailPage({
   }
 
   // Fetch dữ liệu phụ thuộc song song
-  const [commentsRes, reviewsRes, categoryRes, similarRes, storeRes] = await Promise.all([
+  const [commentsRes, reviewsRes, categoryRes, similarRes] = await Promise.all([
     supabase
       .from("comments")
       .select("*")
@@ -162,19 +165,12 @@ export default async function ProductDetailPage({
           .neq("id", productData.id)
           .limit(10)
       : Promise.resolve({ data: [] }),
-    // Fix #5: Lấy số Zalo từ store_settings
-    supabase
-      .from("store_settings")
-      .select("zalo")
-      .eq("id", "default")
-      .maybeSingle(),
   ]);
 
   const comments = (commentsRes.data || []) as CommentRow[];
   const reviews = (reviewsRes.data || []) as ReviewRow[];
   const category = (categoryRes.data || null) as CategoryRow | null;
   let similarProducts = (similarRes.data || []) as ProductRow[];
-  const zaloNumber = (storeRes.data as { zalo?: string } | null)?.zalo || "";
 
   // Bù thêm sản phẩm khác nếu chưa đủ 10
   if (similarProducts.length < 10) {
@@ -201,10 +197,10 @@ export default async function ProductDetailPage({
   });
 
   // Map dữ liệu sản phẩm
-  const price = Number(productData.price);
+  const price = getNumericPrice(productData.price);
   const originalPrice = productData.original_price ? Number(productData.original_price) : 0;
-  const hasDiscount = originalPrice > price;
-  const discountPercent = hasDiscount ? Math.round((1 - price / originalPrice) * 100) : 0;
+  const hasDiscount = price !== null && originalPrice > price;
+  const discountPercent = hasDiscount ? Math.round((1 - price! / originalPrice) * 100) : 0;
   const productImages =
     productData.images && productData.images.length > 0
       ? productData.images
@@ -217,10 +213,6 @@ export default async function ProductDetailPage({
   const description = productData.description || "Sản phẩm nội thất cao cấp từ Tủ Nhựa Giá Rẻ.";
 
   // Fix #5: Tạo Zalo href đúng
-  const zaloHref = zaloNumber
-    ? `https://zalo.me/${zaloNumber.replace(/\D/g, "")}`
-    : "https://zalo.me/";
-
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -231,7 +223,7 @@ export default async function ProductDetailPage({
       "@type": "Offer",
       "url": `https://noithatgiare.shop/san-pham/${slug}`,
       "priceCurrency": "VND",
-      "price": price,
+      "price": price ?? 0,
       "priceValidUntil": new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
       "itemCondition": "https://schema.org/NewCondition",
       "availability": "https://schema.org/InStock"
@@ -299,21 +291,24 @@ export default async function ProductDetailPage({
           />
 
           {/* Right Column: Info */}
-          <div className="flex flex-col">
-            <div className="flex justify-between items-start mb-2">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-900 leading-tight pr-2">
+          <div className="flex min-w-0 flex-col">
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start mb-2">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-900 leading-tight sm:pr-2">
                 {productName}
               </h1>
-              <FavoriteButton
-                product={{
-                  id: productData.id,
-                  name: productName,
-                  price,
-                  oldPrice: hasDiscount ? originalPrice : null,
-                  image: productImages[0],
-                  slug: slug,
-                }}
-              />
+              <div className="flex items-center gap-2 shrink-0 self-start">
+                <ProductAdminEditButton productId={productData.id} />
+                <FavoriteButton
+                  product={{
+                    id: productData.id,
+                    name: productName,
+                    price: price ?? 0,
+                    oldPrice: hasDiscount ? originalPrice : null,
+                    image: productImages[0],
+                    slug: slug,
+                  }}
+                />
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-4 sm:mb-6 text-sm">
@@ -336,7 +331,7 @@ export default async function ProductDetailPage({
 
             <div className="p-4 sm:p-5 bg-linear-to-r from-blue-50 to-slate-50 border border-blue-100 rounded-2xl mb-4 sm:mb-6 shadow-sm">
               <div className="flex items-end gap-2 sm:gap-3 mb-2 flex-wrap">
-                <span className="text-2xl sm:text-3xl font-bold text-blue-700">{price.toLocaleString("vi-VN")}đ</span>
+                <span className="text-2xl sm:text-3xl font-bold text-blue-700">{formatProductPrice(productData.price)}</span>
                 {hasDiscount && (
                   <span className="text-base sm:text-lg text-slate-400 line-through mb-0.5">
                     {originalPrice.toLocaleString("vi-VN")}đ
@@ -380,16 +375,7 @@ export default async function ProductDetailPage({
               }}
             />
 
-            {/* Zalo link */}
-            <a
-              href={zaloHref}
-              target="_blank"
-              rel="noreferrer"
-              className="w-full py-3.5 sm:py-4 mt-3 sm:mt-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-green-200/50 hover:-translate-y-0.5 group text-sm sm:text-base"
-            >
-              <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-12 transition-transform" />
-              Chat Zalo nhận tư vấn kích thước
-            </a>
+            <ZaloConsultButton />
           </div>
         </div>
       </div>
@@ -552,17 +538,17 @@ export default async function ProductDetailPage({
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-4 sm:mb-6">Sản phẩm tương tự</h2>
             <div className="flex overflow-x-auto gap-3 sm:gap-6 hide-scrollbar snap-x pb-4">
               {similarProducts.map((sim) => {
-                const simPrice = Number(sim.price) || 0;
+                const simPrice = getNumericPrice(sim.price);
                 const simOriginal = Number(sim.original_price) || simPrice;
                 const simDiscount =
-                  simOriginal > simPrice
+                  simPrice !== null && simOriginal && simOriginal > simPrice
                     ? Math.round((1 - simPrice / simOriginal) * 100)
                     : 0;
 
                 return (
                   <div
                     key={sim.id}
-                    className="w-[160px] sm:w-[220px] md:w-[260px] shrink-0 snap-start group border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                    className="w-[150px] sm:w-[220px] md:w-[260px] shrink-0 snap-start group border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex min-w-0 flex-col"
                   >
                     <Link
                       href={`/san-pham/${sim.slug || sim.id}`}
@@ -597,12 +583,12 @@ export default async function ProductDetailPage({
                         {sim.name}
                       </Link>
 
-                      <div className="mt-auto flex items-end justify-between pt-2">
-                        <div>
+                      <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+                        <div className="min-w-0">
                           <span className="text-red-600 font-bold block text-xs sm:text-sm">
-                            {simPrice.toLocaleString("vi-VN")}đ
+                            {formatProductPrice(sim.price)}
                           </span>
-                          {simOriginal > simPrice && (
+                          {simPrice !== null && simOriginal && simOriginal > simPrice && (
                             <span className="text-slate-400 text-[10px] sm:text-xs line-through block">
                               {simOriginal.toLocaleString("vi-VN")}đ
                             </span>
@@ -613,7 +599,7 @@ export default async function ProductDetailPage({
                             id: sim.id,
                             name: sim.name,
                             price: simPrice,
-                            oldPrice: simOriginal > simPrice ? simOriginal : null,
+                            oldPrice: simPrice !== null && simOriginal && simOriginal > simPrice ? simOriginal : null,
                             image: sim.image_url || "/cat-tu.png",
                           }}
                         />

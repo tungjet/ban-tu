@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 
 const NAV_LINKS = [
   { href: "/", label: "Trang chủ" },
+  { href: "/gioi-thieu", label: "Giới thiệu" },
   { href: "/danh-muc", label: "Danh mục" },
   { href: "/san-pham", label: "Sản phẩm" },
   { href: "/thu-vien", label: "Thư viện" },
@@ -135,16 +136,16 @@ export function Header() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white">
-        <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-          <div className="flex items-center gap-4">
+        <div className="flex h-14 sm:h-16 items-center justify-between gap-2 px-3 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <button
-              className="md:hidden p-2 -ml-2 text-slate-600 hover:text-slate-900"
+              className="md:hidden tap-target -ml-2 text-slate-600 hover:text-slate-900 flex items-center justify-center"
               onClick={() => setMobileMenuOpen(true)}
               aria-label="Mở menu"
             >
               <Menu className="w-6 h-6" />
             </button>
-            <Link href="/" className="flex items-center gap-2 shrink-0">
+            <Link href="/" className="flex items-center gap-2 min-w-0 shrink">
               <Image src="/logo.png" alt="Tủ Nhựa Giá Rẻ" width={160} height={50} className="h-10 w-auto object-contain" />
             </Link>
           </div>
@@ -156,18 +157,18 @@ export function Header() {
             </Suspense>
           </div>
 
-          <nav className="hidden md:flex gap-6 items-center">
+          <nav className="hidden md:flex gap-4 lg:gap-6 items-center">
             {NAV_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className="text-sm font-medium text-slate-600 hover:text-blue-600">
+              <Link key={link.href} href={link.href} className="text-sm font-medium text-slate-600 hover:text-blue-600 whitespace-nowrap">
                 {link.label}
               </Link>
             ))}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
             <Link
               href="/yeu-thich"
-              className="p-2 text-slate-600 hover:text-blue-600 relative cursor-pointer transition-colors"
+              className="tap-target text-slate-600 hover:text-blue-600 relative cursor-pointer transition-colors flex items-center justify-center"
               aria-label="Sản phẩm yêu thích"
             >
               <Heart className="w-6 h-6" />
@@ -180,7 +181,7 @@ export function Header() {
 
             <button
               onClick={() => toggleCart(true)}
-              className="p-2 text-slate-600 hover:text-blue-600 relative cursor-pointer transition-colors"
+              className="tap-target text-slate-600 hover:text-blue-600 relative cursor-pointer transition-colors flex items-center justify-center"
               aria-label="Giỏ hàng"
             >
               <ShoppingCart className="w-6 h-6" />
@@ -193,7 +194,7 @@ export function Header() {
 
             <Link
               href="/admin?tab=account"
-              className="p-1.5 text-slate-600 hover:text-blue-600 transition-colors"
+              className="tap-target text-slate-600 hover:text-blue-600 transition-colors flex items-center justify-center"
               aria-label="Tài khoản"
             >
               {mounted && hasAccount && accountAvatar ? (

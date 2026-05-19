@@ -20,11 +20,17 @@ import {
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
+function RequiredMark() {
+  return <span className="text-red-500">*</span>;
+}
+
 export default function CheckoutPage() {
   const { items, clearCart, updateQuantity, removeItem } = useCartStore();
   const [isOrdered, setIsOrdered] = useState(false);
+  const [isAwaitingBankTransfer, setIsAwaitingBankTransfer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderCode, setOrderCode] = useState("");
+  const [orderedTotal, setOrderedTotal] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "bank">("cod");
 
   const [form, setForm] = useState({
@@ -38,11 +44,84 @@ export default function CheckoutPage() {
   const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const shipping = 0;
   const total = subtotal + shipping;
+  const paymentTotal = orderedTotal || total;
+  const bankCode = "VCB";
+  const bankAccountNumber = "1234567890";
+  const bankAccountName = "BANTU STORE";
+  const qrPaymentUrl = orderCode
+    ? `https://img.vietqr.io/image/${bankCode}-${bankAccountNumber}-compact2.png?${new URLSearchParams({
+        amount: String(paymentTotal),
+        addInfo: `Thanh toan ${orderCode}`,
+        accountName: bankAccountName,
+      }).toString()}`
+    : "";
+
+  const createOrder = async (code: string, showSuccess = true) => {
+    if (items.length === 0 || isSubmitting) return;
+
+    setIsSubmitting(true);
+
+    const orderItems = items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      image: item.image,
+    }));
+
+    const { data, error } = await supabase
+      .from("orders")
+      .insert([
+        {
+          customer_name: form.customer_name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+          address: form.address.trim(),
+          note: form.note.trim(),
+          payment_method: paymentMethod === "cod" ? "COD" : "Chuyển khoản",
+          total_amount: total,
+          status: paymentMethod === "bank" ? "Chờ thanh toán" : "Chờ xử lý",
+          items: orderItems,
+          order_code: code,
+        },
+      ])
+      .select()
+      .single();
+
+    setIsSubmitting(false);
+
+    if (error) {
+      console.error(error);
+      toast.error("Đặt hàng thất bại: " + error.message);
+      return;
+    }
+
+    setOrderCode(data?.order_code || code);
+    setOrderedTotal(total);
+    setIsOrdered(showSuccess);
+    setIsAwaitingBankTransfer(!showSuccess && paymentMethod === "bank");
+    if (!showSuccess) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    clearCart();
+  };
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0 || isSubmitting) return;
 
+    const code = orderCode || `BT-${Math.floor(100000 + Math.random() * 900000)}`;
+    setOrderCode(code);
+
+    if (paymentMethod === "bank") {
+      await createOrder(code, false);
+      return;
+    }
+
+    await createOrder(code);
+    return;
+
+    /*
     setIsSubmitting(true);
 
     // Sinh order_code dạng BT-<6 số>
@@ -86,17 +165,39 @@ export default function CheckoutPage() {
     setOrderCode(data?.order_code || code);
     setIsOrdered(true);
     clearCart();
+    */
   };
 
   // Trạng thái đơn hàng rỗng
-  if (items.length === 0 && !isOrdered) {
+  const handleConfirmBankTransfer = async () => {
+    if (!orderCode || isSubmitting) return;
+
+    setIsSubmitting(true);
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "Chờ xử lý" })
+      .eq("order_code", orderCode);
+
+    setIsSubmitting(false);
+
+    if (error) {
+      console.error(error);
+      toast.error("Xác nhận chuyển khoản thất bại: " + error.message);
+      return;
+    }
+
+    setIsAwaitingBankTransfer(false);
+    setIsOrdered(true);
+  };
+
+  if (items.length === 0 && !isOrdered && !isAwaitingBankTransfer) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center">
+        <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-xl max-w-md w-full text-center">
           <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-6">
             <ShoppingBag className="w-10 h-10" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Giỏ hàng đang trống</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">Giỏ hàng đang trống</h1>
           <p className="text-slate-500 mb-6">Bạn chưa có sản phẩm nào để tiến hành thanh toán.</p>
           <Link href="/san-pham" className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-colors w-full gap-2">
             <ArrowLeft className="w-5 h-5" /> Quay lại mua sắm
@@ -107,32 +208,106 @@ export default function CheckoutPage() {
   }
 
   // Trạng thái đặt hàng thành công
+  if (isAwaitingBankTransfer) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <Toaster />
+        <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-xl max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-6">
+            <CreditCard className="w-10 h-10" />
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">Chuyển khoản để hoàn tất đơn hàng</h1>
+          <p className="text-slate-500 mb-6">
+            Đơn hàng đã được ghi nhận. Vui lòng chuyển khoản đúng số tiền và ghi nội dung là mã đơn bên dưới, sau đó bấm &quot;Đã chuyển khoản&quot;.
+          </p>
+
+          <div className="bg-slate-50 p-4 rounded-xl text-left mb-6">
+            <p className="text-sm text-slate-600 mb-1">
+              Mã đơn hàng: <span className="font-bold text-slate-900">#{orderCode}</span>
+            </p>
+            <p className="text-sm text-slate-600 mb-1">
+              Số tiền: <span className="font-bold text-red-600">{paymentTotal.toLocaleString("vi-VN")}đ</span>
+            </p>
+            <p className="text-sm text-slate-600 mb-3">
+              Nội dung chuyển khoản: <span className="font-bold text-slate-900">Thanh toan {orderCode}</span>
+            </p>
+
+            <div className="border-t border-slate-200 pt-3 mt-1 text-center">
+              <p className="text-xs text-slate-500 mb-2">Quét mã QR để chuyển khoản:</p>
+              <div className="w-full max-w-56 aspect-square mx-auto bg-white p-2 rounded-xl border border-slate-100">
+                <Image
+                  src={qrPaymentUrl}
+                  alt="Mã QR thanh toán"
+                  width={224}
+                  height={224}
+                  unoptimized
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleConfirmBankTransfer}
+            disabled={isSubmitting}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 shadow-lg shadow-blue-200/50 flex items-center justify-center gap-2"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Đang xác nhận...
+              </>
+            ) : (
+              <>
+                Đã chuyển khoản
+                <ChevronRight className="w-5 h-5" />
+              </>
+            )}
+          </button>
+
+          <Link href="/" className="w-full mt-3 inline-flex items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-3 px-6 rounded-xl transition-colors">
+            Về trang chủ
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (isOrdered) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
         <Toaster />
-        <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center">
+        <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-xl max-w-md w-full text-center">
           <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center text-green-600 mx-auto mb-6">
             <CheckCircle2 className="w-10 h-10" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Đặt hàng thành công!</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">Đặt hàng thành công!</h1>
           <p className="text-slate-500 mb-6">Cảm ơn bạn đã tin tưởng Tủ Nhựa Giá Rẻ. Nhân viên sẽ liên hệ với bạn để xác nhận đơn hàng trong thời gian sớm nhất.</p>
           <div className="bg-slate-50 p-4 rounded-xl text-left mb-6">
             <p className="text-sm text-slate-600 mb-1">Mã đơn hàng: <span className="font-bold text-slate-900">#{orderCode}</span></p>
             <p className="text-sm text-slate-600 mb-3">Hình thức: <span className="font-bold text-slate-900">{paymentMethod === "cod" ? "Thu tiền khi nhận hàng (COD)" : "Chuyển khoản ngân hàng"}</span></p>
 
             {paymentMethod === "bank" && (
+              <p className="text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-sm font-medium mb-3">
+                Bạn đã đặt hàng thành công. Chúng tôi đang xác minh khoản chuyển khoản của bạn.
+              </p>
+            )}
+
+            {paymentMethod === "bank" && isAwaitingBankTransfer && (
               <div className="border-t border-slate-200 pt-3 mt-1 text-center">
                 <p className="text-xs text-slate-500 mb-2">Quét mã QR dưới đây để thanh toán:</p>
-                <div className="relative w-48 h-48 mx-auto bg-white p-2 rounded-xl border border-slate-100">
+                <div className="w-48 h-48 mx-auto bg-white p-2 rounded-xl border border-slate-100">
                   <Image
-                    src={`https://img.vietqr.io/image/vcb-1234567890-compact2.png?amount=${total}&addInfo=Thanh%20toan%20${orderCode}&accountName=BANTU%20STORE`}
-                    alt="Mã QR Thanh toán"
-                    fill
-                    className="object-contain"
+                    src={qrPaymentUrl}
+                    alt="Mã QR thanh toán"
+                    width={192}
+                    height={192}
+                    unoptimized
+                    className="w-full h-full object-contain"
                   />
                 </div>
-                <p className="text-xs text-slate-500 mt-2">Số tiền: <span className="font-bold text-red-600">{total.toLocaleString('vi-VN')}đ</span></p>
+                <p className="text-xs text-slate-500 mt-2">Số tiền: <span className="font-bold text-red-600">{paymentTotal.toLocaleString('vi-VN')}đ</span></p>
               </div>
             )}
           </div>
@@ -150,7 +325,7 @@ export default function CheckoutPage() {
       {/* Breadcrumb */}
       <div className="bg-white border-b border-slate-100 py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex items-center text-sm text-slate-500">
+          <nav className="flex items-center text-xs sm:text-sm text-slate-500 overflow-x-auto hide-scrollbar whitespace-nowrap">
             <Link href="/" className="hover:text-blue-600 flex items-center gap-1">
               <Home className="w-4 h-4" /> Trang chủ
             </Link>
@@ -162,15 +337,15 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <h1 className="text-3xl font-bold text-slate-900 mb-8">Thanh toán đơn hàng</h1>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-5 sm:mb-8">Thanh toán đơn hàng</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
           {/* CỘT TRÁI: FORM THÔNG TIN */}
           <div className="lg:col-span-7 order-2 lg:order-1">
             <form id="checkout-form" onSubmit={handlePlaceOrder} className="space-y-4 sm:space-y-6">
               {/* Thông tin giao hàng */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
                 <div className="flex items-center gap-2 mb-6">
                   <Truck className="w-5 h-5 text-blue-600" />
                   <h2 className="text-lg font-bold text-slate-900">Thông tin giao hàng</h2>
@@ -178,7 +353,7 @@ export default function CheckoutPage() {
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Họ và tên *</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Họ và tên <RequiredMark /></label>
                     <input
                       type="text"
                       required
@@ -190,8 +365,8 @@ export default function CheckoutPage() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Số điện thoại *</label>
+                    <div className="min-w-0">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Số điện thoại <RequiredMark /></label>
                       <input
                         type="tel"
                         required
@@ -201,7 +376,7 @@ export default function CheckoutPage() {
                         placeholder="0912345678"
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email (không bắt buộc)</label>
                       <input
                         type="email"
@@ -214,7 +389,7 @@ export default function CheckoutPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Địa chỉ nhận hàng *</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Địa chỉ nhận hàng <RequiredMark /></label>
                     <input
                       type="text"
                       required
@@ -239,14 +414,14 @@ export default function CheckoutPage() {
               </div>
 
               {/* Phương thức thanh toán */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
                 <div className="flex items-center gap-2 mb-6">
                   <CreditCard className="w-5 h-5 text-blue-600" />
                   <h2 className="text-lg font-bold text-slate-900">Phương thức thanh toán</h2>
                 </div>
 
                 <div className="space-y-3">
-                  <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-colors ${paymentMethod === 'cod' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <label className={`flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 border rounded-xl cursor-pointer transition-colors ${paymentMethod === 'cod' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200 hover:bg-slate-50'}`}>
                     <input
                       type="radio"
                       name="payment"
@@ -261,7 +436,7 @@ export default function CheckoutPage() {
                     </div>
                   </label>
 
-                  <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-colors ${paymentMethod === 'bank' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <label className={`flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 border rounded-xl cursor-pointer transition-colors ${paymentMethod === 'bank' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200 hover:bg-slate-50'}`}>
                     <input
                       type="radio"
                       name="payment"
@@ -291,7 +466,7 @@ export default function CheckoutPage() {
               {/* Danh sách sản phẩm */}
               <div className="divide-y divide-slate-100 max-h-64 sm:max-h-80 overflow-y-auto hide-scrollbar mb-4 sm:mb-6">
                 {items.map((item) => (
-                  <div key={item.id} className="py-3 sm:py-4 flex items-center gap-3 sm:gap-4">
+                  <div key={item.id} className="py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
                     <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border border-slate-100 shrink-0">
                       <Image src={item.image} alt={item.name} fill className="object-cover" />
                     </div>
@@ -321,7 +496,7 @@ export default function CheckoutPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="text-xs sm:text-sm font-bold text-slate-900 shrink-0">
+                    <div className="text-right text-xs sm:text-sm font-bold text-slate-900 shrink-0">
                       {(item.price * item.quantity).toLocaleString('vi-VN')}đ
                     </div>
                   </div>
@@ -338,7 +513,7 @@ export default function CheckoutPage() {
                   <span>Phí vận chuyển:</span>
                   <span className="text-green-600 font-medium">Miễn phí</span>
                 </div>
-                <div className="flex justify-between text-lg font-bold text-slate-900 pt-3 border-t border-slate-100">
+                <div className="flex justify-between gap-3 text-base sm:text-lg font-bold text-slate-900 pt-3 border-t border-slate-100">
                   <span>Tổng tiền:</span>
                   <span className="text-blue-600">{total.toLocaleString('vi-VN')}đ</span>
                 </div>
@@ -358,7 +533,7 @@ export default function CheckoutPage() {
                   </>
                 ) : (
                   <>
-                    Đặt hàng ngay
+                    {paymentMethod === "bank" ? "Tiếp tục chuyển khoản" : "Đặt hàng ngay"}
                     <ChevronRight className="w-5 h-5" />
                   </>
                 )}

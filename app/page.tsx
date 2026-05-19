@@ -105,7 +105,7 @@ export default async function Home() {
     id: string;
     name: string;
     slug?: string | null;
-    price: number | string;
+    price: number | string | null;
     original_price?: number | string | null;
     image_url?: string | null;
     images?: string[] | null;
@@ -128,7 +128,7 @@ export default async function Home() {
           id: p.id,
           name: p.name,
           slug: p.slug ?? null,
-          price: Number(p.price),
+          price: p.price ?? null,
           original_price: p.original_price ? Number(p.original_price) : null,
           image_url: p.image_url ?? null,
         },
@@ -206,8 +206,8 @@ export default async function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
-            {products.map((product: { id: string; name: string; price: string; image_url?: string; slug?: string; original_price?: string; rating?: number; sold?: number }) => (
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] md:grid-cols-4 gap-3 sm:gap-6">
+            {products.map((product: { id: string; name: string; price: string | number | null; image_url?: string; slug?: string; original_price?: string | number | null; rating?: number; sold?: number }) => (
               <HomeProductCard key={product.id} product={product} />
             ))}
             {products.length === 0 && (
@@ -244,8 +244,8 @@ export default async function Home() {
 
         {/* 3. Danh mục sản phẩm - lấy từ DB */}
         {categories.length > 0 && (
-          <section className="bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-100">
-            <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <section className="bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-100 overflow-hidden">
+            <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
               <h2 className="text-lg sm:text-2xl font-bold text-slate-900">Khám phá danh mục</h2>
               <Link href="/danh-muc" className="text-blue-600 text-sm font-medium hover:underline flex items-center shrink-0">
                 Xem tất cả <ChevronRight className="w-4 h-4" />
@@ -306,8 +306,8 @@ export default async function Home() {
 
         {/* 5. Gallery - thư viện ảnh nội thất */}
         {galleryDisplay.length > 0 && (
-          <section className="bg-white rounded-3xl p-4 sm:p-10 shadow-sm border border-slate-100">
-            <div className="flex items-center justify-between mb-5 sm:mb-8">
+          <section className="bg-white rounded-3xl p-4 sm:p-10 shadow-sm border border-slate-100 overflow-hidden">
+            <div className="flex items-center justify-between gap-3 mb-5 sm:mb-8">
               <div>
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-1">Thư viện nội thất</h2>
                 <p className="text-xs sm:text-sm text-slate-500">Bấm vào ảnh để xem chi tiết và đặt mua</p>

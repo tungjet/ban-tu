@@ -1,65 +1,366 @@
 import Image from "next/image";
+import Link from "next/link";
+import {
+  ChevronRight,
+  Star,
+  ShieldCheck,
+  Droplets,
+  BugOff,
+  Sparkles,
+  Wind,
+  Leaf,
+  Award,
+  Heart,
+  Truck,
+  HardHat,
+  ShoppingBag,
+} from "lucide-react";
+import type { Metadata } from "next";
+import type { ComponentType } from "react";
+import { createServerClient } from "@/lib/supabase";
+import { Gallery, type GalleryItem } from "@/components/Gallery";
+import { HomeProductCard } from "@/components/HomeProductCard";
 
-export default function Home() {
+export const metadata: Metadata = {
+  title: "Tủ Nhựa Giá Rẻ | Nội thất cao cấp, chống nước 100%",
+  description: "Tủ Nhựa Giá Rẻ chuyên cung cấp tủ quần áo, giường ngủ, tủ bếp từ nhựa Đài Loan, Ecoplast và nhôm kính cao cấp. Thiết kế hiện đại, độ bền 10 năm, miễn phí lắp đặt.",
+  keywords: ["tủ nhựa giá rẻ", "nội thất nhựa", "tủ quần áo nhựa", "giường nhựa", "tủ bếp nhôm", "nội thất ecoplast", "bantu"],
+  openGraph: {
+    title: "Tủ Nhựa Giá Rẻ | Nội thất nhựa và nhôm cao cấp",
+    description: "Giải pháp nội thất hoàn hảo chống mối mọt, chống nước 100% cho gia đình bạn.",
+    url: "https://noithatgiare.shop",
+    siteName: "Tủ Nhựa Giá Rẻ",
+    images: [
+      {
+        url: "/hero-banner.png",
+        width: 1200,
+        height: 630,
+        alt: "Tủ Nhựa Giá Rẻ",
+      },
+    ],
+    locale: "vi_VN",
+    type: "website",
+  },
+};
+
+// Map icon name (lưu trong DB) -> component lucide-react
+const FEATURE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  droplets: Droplets,
+  "bug-off": BugOff,
+  "shield-check": ShieldCheck,
+  sparkles: Sparkles,
+  wind: Wind,
+  leaf: Leaf,
+  award: Award,
+  heart: Heart,
+  truck: Truck,
+  "hard-hat": HardHat,
+};
+
+const FEATURE_THEMES: Record<string, string> = {
+  blue: "bg-blue-50 text-blue-600",
+  orange: "bg-orange-50 text-orange-600",
+  green: "bg-green-50 text-green-600",
+  red: "bg-red-50 text-red-600",
+  amber: "bg-amber-50 text-amber-600",
+  purple: "bg-purple-50 text-purple-600",
+};
+
+export default async function Home() {
+  const supabase = createServerClient();
+  const [productsRes, categoriesRes, featuresRes, testimonialsRes, galleryRes] = await Promise.all([
+    supabase.from("products").select("*").eq("is_published", true).limit(4),
+    supabase
+      .from("categories")
+      .select("id, name, slug, image_url, description, display_order")
+      .order("display_order", { ascending: true })
+      .limit(8),
+    supabase
+      .from("homepage_features")
+      .select("*")
+      .eq("is_published", true)
+      .order("display_order", { ascending: true }),
+    supabase
+      .from("testimonials")
+      .select("*")
+      .eq("is_published", true)
+      .order("display_order", { ascending: true })
+      .limit(6),
+    // Gallery: lấy tất cả sản phẩm có ảnh, mỗi ảnh thành 1 item
+    supabase
+      .from("products")
+      .select("id, name, slug, price, original_price, image_url, images, description")
+      .eq("is_published", true)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  const products = productsRes.data || [];
+  const categories = categoriesRes.data || [];
+  const features = featuresRes.data || [];
+  const testimonials = testimonialsRes.data || [];
+
+  // Bung từng ảnh của mỗi sản phẩm thành 1 gallery item
+  type ProductForGallery = {
+    id: string;
+    name: string;
+    slug?: string | null;
+    price: number | string;
+    original_price?: number | string | null;
+    image_url?: string | null;
+    images?: string[] | null;
+    description?: string | null;
+  };
+  const galleryItems: GalleryItem[] = [];
+  for (const p of (galleryRes.data || []) as ProductForGallery[]) {
+    const productImages = (p.images && p.images.length > 0)
+      ? p.images
+      : p.image_url
+        ? [p.image_url]
+        : [];
+    productImages.forEach((img, idx) => {
+      galleryItems.push({
+        id: `${p.id}-${idx}`,
+        image_url: img,
+        title: p.name,
+        description: (p.description || "").replace(/<[^>]*>/g, "").slice(0, 140),
+        product: {
+          id: p.id,
+          name: p.name,
+          slug: p.slug ?? null,
+          price: Number(p.price),
+          original_price: p.original_price ? Number(p.original_price) : null,
+          image_url: p.image_url ?? null,
+        },
+      });
+    });
+  }
+  // Giới hạn 16 ảnh trên trang chủ để không quá nặng
+  const galleryDisplay = galleryItems.slice(0, 16);
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FurnitureStore",
+    "name": "Tủ Nhựa Giá Rẻ",
+    "image": "https://noithatgiare.shop/hero-banner.png",
+    "@id": "https://noithatgiare.shop",
+    "url": "https://noithatgiare.shop",
+    "telephone": "0987654321", // TODO: Update with real number if available
+    "priceRange": "VND",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Việt Nam",
+      "addressLocality": "Hà Nội",
+      "addressRegion": "Hà Nội",
+      "addressCountry": "VN"
+    },
+    "description": "Tủ Nhựa Giá Rẻ chuyên cung cấp tủ quần áo, giường ngủ, tủ bếp từ nhựa Đài Loan, Ecoplast và nhôm kính cao cấp. Thiết kế hiện đại, độ bền 10 năm, miễn phí lắp đặt.",
+    "sameAs": [
+      "https://www.facebook.com/noithatngavuong",
+      "https://zalo.me/"
+    ]
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
+    <main className="flex flex-col items-center w-full bg-slate-50">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      {/* 1. Hero Section */}
+      <section className="relative w-full h-[480px] sm:h-[560px] md:h-[650px] overflow-hidden">
         <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
+          src="/hero-banner.png"
+          alt="Nội thất cao cấp Tủ Nhựa Giá Rẻ"
+          fill
+          className="object-cover object-center"
           priority
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+        <div className="absolute inset-0 bg-linear-to-t from-slate-900/90 via-slate-900/40 to-transparent" />
+
+        <div className="absolute bottom-20 sm:bottom-24 left-0 w-full px-5 sm:px-8 md:px-12 md:max-w-2xl text-white">
+          <span className="inline-block px-3 py-1 mb-3 text-xs font-semibold tracking-wider text-blue-900 bg-blue-100 rounded-full">
+            BỘ SƯU TẬP 2026
+          </span>
+          <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold mb-3 leading-tight">
+            Nâng tầm không gian sống của bạn
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-sm md:text-base text-slate-200 mb-5 max-w-md line-clamp-3 sm:line-clamp-none">
+            Khám phá các dòng sản phẩm tủ, giường nhựa Đài Loan & Ecoplast bền bỉ, hiện đại, giá thành hợp lý.
           </p>
+          <Link href="/san-pham?sort=moinhat" className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg inline-flex items-center justify-center gap-2 transition-colors">
+            Xem mẫu mới nhất
+            <ChevronRight className="w-5 h-5" />
+          </Link>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </section>
+
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 -mt-12 sm:-mt-20 pb-16 flex flex-col gap-10 sm:gap-16">
+
+        {/* 2. Sản phẩm nổi bật */}
+        <section>
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h2 className="text-lg sm:text-2xl font-bold text-white drop-shadow-md">Sản phẩm nổi bật</h2>
+            <Link href="/san-pham" className="text-white text-sm font-medium hover:underline flex items-center drop-shadow-md shrink-0">
+              Xem tất cả <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
+            {products.map((product: { id: string; name: string; price: string; image_url?: string; slug?: string; original_price?: string; rating?: number; sold?: number }) => (
+              <HomeProductCard key={product.id} product={product} />
+            ))}
+            {products.length === 0 && (
+              <div className="col-span-2 md:col-span-4">
+                <div className="relative overflow-hidden rounded-3xl bg-white/95 backdrop-blur-sm border border-white/60 shadow-xl px-6 py-14 flex flex-col items-center text-center">
+                  {/* Decorative blobs */}
+                  <div className="absolute -top-10 -left-10 w-56 h-56 bg-blue-100 rounded-full blur-3xl pointer-events-none opacity-70" />
+                  <div className="absolute -bottom-10 -right-10 w-56 h-56 bg-cyan-100 rounded-full blur-3xl pointer-events-none opacity-70" />
+
+                  {/* Icon */}
+                  <div className="relative w-20 h-20 mb-5 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center shadow-md">
+                    <ShoppingBag className="w-9 h-9 text-blue-400" />
+                    <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shadow">
+                      <Sparkles className="w-3 h-3 text-white" />
+                    </span>
+                  </div>
+
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Sản phẩm sắp ra mắt</h3>
+                  <p className="text-slate-500 text-sm max-w-xs mb-6 leading-relaxed">
+                    Chúng tôi đang chuẩn bị những sản phẩm tuyệt vời nhất. Hãy quay lại sớm nhé!
+                  </p>
+
+                  <Link
+                    href="/san-pham"
+                    className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition-colors shadow-lg shadow-blue-200"
+                  >
+                    Khám phá ngay <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* 3. Danh mục sản phẩm - lấy từ DB */}
+        {categories.length > 0 && (
+          <section className="bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-2xl font-bold text-slate-900">Khám phá danh mục</h2>
+              <Link href="/danh-muc" className="text-blue-600 text-sm font-medium hover:underline flex items-center shrink-0">
+                Xem tất cả <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            <div className="flex overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 gap-3 sm:gap-4 snap-x hide-scrollbar">
+              {categories.map((category: { id: string | number; name: string; slug?: string; image_url?: string }) => (
+                <Link
+                  key={category.id}
+                  href={`/san-pham?category=${category.slug || category.id}`}
+                  className="flex-none w-24 sm:w-36 group snap-start text-center"
+                >
+                  <div className="relative w-full aspect-square rounded-full overflow-hidden mb-2 bg-slate-100 border-4 border-transparent group-hover:border-blue-100 transition-all">
+                    <Image
+                      src={category.image_url || "/cat-tu.png"}
+                      alt={category.name}
+                      fill
+                      className="object-cover group-hover:scale-110 transition-transform duration-300"
+                    />
+                  </div>
+                  <h3 className="font-medium text-xs sm:text-sm text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">
+                    {category.name}
+                  </h3>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 4. Tại sao chọn Bantu (Features) - lấy từ DB */}
+        {features.length > 0 && (
+          <section className="bg-white rounded-3xl p-5 sm:p-12 shadow-sm border border-slate-100">
+            <div className="text-center mb-8 sm:mb-10">
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-3">Ưu điểm nội thất nhựa & nhôm</h2>
+              <p className="text-slate-500 max-w-2xl mx-auto text-sm sm:text-base">Vật liệu thay thế hoàn hảo cho gỗ công nghiệp, giải quyết triệt để các vấn đề của thời tiết nhiệt đới gió mùa.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
+              {features.map((feature: { id: string; icon?: string; title: string; description: string; color_theme?: string }) => {
+                const Icon = FEATURE_ICONS[feature.icon || "shield-check"] || ShieldCheck;
+                const themeClass = FEATURE_THEMES[feature.color_theme || "blue"] || FEATURE_THEMES.blue;
+                return (
+                  <div key={feature.id} className="flex sm:flex-col items-start sm:items-center sm:text-center gap-4 sm:gap-0">
+                    <div className={`w-14 h-14 sm:w-16 sm:h-16 ${themeClass} rounded-2xl flex items-center justify-center shrink-0 sm:mb-4`}>
+                      <Icon className="w-7 h-7 sm:w-8 sm:h-8" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-base sm:text-lg mb-1 sm:mb-2 text-slate-900">{feature.title}</h3>
+                      <p className="text-slate-600 text-sm">{feature.description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* 5. Gallery - thư viện ảnh nội thất */}
+        {galleryDisplay.length > 0 && (
+          <section className="bg-white rounded-3xl p-4 sm:p-10 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between mb-5 sm:mb-8">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-1">Thư viện nội thất</h2>
+                <p className="text-xs sm:text-sm text-slate-500">Bấm vào ảnh để xem chi tiết và đặt mua</p>
+              </div>
+            </div>
+            <Gallery items={galleryDisplay} />
+          </section>
+        )}
+
+        {/* 6. Đánh giá từ khách hàng - lấy từ DB */}
+        {testimonials.length > 0 && (
+          <section className="bg-blue-50 rounded-3xl p-5 sm:p-12 shadow-sm text-slate-900 border border-blue-100">
+            <div className="text-center mb-8 sm:mb-10">
+              <h2 className="text-xl sm:text-2xl font-bold mb-3">Khách hàng nói gì về Tủ Nhựa Giá Rẻ</h2>
+              <p className="text-slate-500 max-w-2xl mx-auto text-sm sm:text-base">Vài nhận xét chân thực từ những khách hàng đã trực tiếp trải nghiệm sản phẩm của chúng tôi.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+              {testimonials.slice(0, 3).map((t: { id: string; customer_name: string; initial?: string; product_label?: string; rating?: number; content: string }) => {
+                const stars = Math.max(1, Math.min(5, t.rating ?? 5));
+                const initial = (t.initial || t.customer_name || "?").trim().charAt(0).toUpperCase();
+                return (
+                  <div key={t.id} className="bg-white p-5 sm:p-6 rounded-2xl border border-blue-100 shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                    <div className="flex items-center gap-1 text-amber-400 mb-3">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-4 h-4 fill-current ${i < stars ? "" : "text-slate-200"}`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-slate-600 text-sm mb-4 leading-relaxed italic">&ldquo;{t.content}&rdquo;</p>
+                    <div className="flex items-center gap-3 mt-auto">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-700 shrink-0">
+                        {initial}
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm text-slate-900">{t.customer_name}</h4>
+                        {t.product_label && (
+                          <p className="text-xs text-slate-500 line-clamp-1">{t.product_label}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+      </div>
+
+
+    </main>
   );
 }

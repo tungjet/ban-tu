@@ -69,32 +69,32 @@ export default function CheckoutPage() {
       image: item.image,
     }));
 
-    const { data, error } = await supabase
-      .from("orders")
-      .insert([
-        {
-          customer_name: form.customer_name.trim(),
-          phone: form.phone.trim(),
-          email: form.email.trim(),
-          address: form.address.trim(),
-          note: form.note.trim(),
-          payment_method: paymentMethod === "cod" ? "COD" : "Chuyển khoản",
-          total_amount: total,
-          status: paymentMethod === "bank" ? "Chờ thanh toán" : "Chờ xử lý",
-          items: orderItems,
-          order_code: code,
-        },
-      ])
-      .select()
-      .single();
-
-    setIsSubmitting(false);
-
-    if (error) {
-      console.error(error);
-      toast.error("Đặt hàng thất bại: " + error.message);
+    const res = await fetch("/api/public/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        customer_name: form.customer_name.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        address: form.address.trim(),
+        note: form.note.trim(),
+        payment_method: paymentMethod,
+        total_amount: total,
+        status: paymentMethod === "bank" ? "Chờ thanh toán" : "Chờ xử lý",
+        items: orderItems,
+        order_code: code,
+      }),
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      setIsSubmitting(false);
+      toast.error("Đặt hàng thất bại: " + (result.error || "Unknown"));
       return;
     }
+    const data = { order_code: result.order_code, id: result.id };
+
+    setIsSubmitting(false);
 
     setOrderCode(data?.order_code || code);
     setOrderedTotal(total);
@@ -173,16 +173,18 @@ export default function CheckoutPage() {
     if (!orderCode || isSubmitting) return;
 
     setIsSubmitting(true);
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: "Chờ xử lý" })
-      .eq("order_code", orderCode);
-
+    const res = await fetch(`/api/public/orders/${orderCode}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ status: "Chờ xử lý" }),
+    });
+    const result = await res.json();
     setIsSubmitting(false);
 
-    if (error) {
-      console.error(error);
-      toast.error("Xác nhận chuyển khoản thất bại: " + error.message);
+    if (!res.ok) {
+      console.error(result);
+      toast.error("Xác nhận chuyển khoản thất bại: " + (result.error || "Unknown"));
       return;
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, X, Loader2, Banknote, Handshake } from "lucide-react";
+import { Check, X, Loader2, Banknote, Handshake, UserPlus } from "lucide-react";
 import toast from "react-hot-toast";
 
 interface CollabRow {
@@ -34,6 +34,9 @@ export default function CollaboratorsTab() {
   const [collabs, setCollabs] = useState<CollabRow[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newCtv, setNewCtv] = useState({ email: "", password: "", fullName: "", phone: "" });
+  const [creating, setCreating] = useState(false);
 
   const loadCollabs = async () => {
     const res = await fetch("/api/admin/collaborators");
@@ -87,12 +90,20 @@ export default function CollaboratorsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 border-b border-slate-200">
-        <button onClick={() => setSubTab("list")} className={`px-4 py-2 text-sm font-medium border-b-2 ${subTab === "list" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-600"}`}>
-          <Handshake className="w-4 h-4 inline mr-1" /> Danh sách CTV
-        </button>
-        <button onClick={() => setSubTab("withdrawals")} className={`px-4 py-2 text-sm font-medium border-b-2 ${subTab === "withdrawals" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-600"}`}>
-          <Banknote className="w-4 h-4 inline mr-1" /> Yêu cầu rút tiền {withdrawals.filter((w) => w.status === "pending").length > 0 && <span className="ml-1 bg-rose-500 text-white text-xs rounded-full px-1.5">{withdrawals.filter((w) => w.status === "pending").length}</span>}
+      <div className="flex items-center justify-between border-b border-slate-200">
+        <div className="flex gap-2">
+          <button onClick={() => setSubTab("list")} className={`px-4 py-2 text-sm font-medium border-b-2 ${subTab === "list" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-600"}`}>
+            <Handshake className="w-4 h-4 inline mr-1" /> Danh sách CTV
+          </button>
+          <button onClick={() => setSubTab("withdrawals")} className={`px-4 py-2 text-sm font-medium border-b-2 ${subTab === "withdrawals" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-600"}`}>
+            <Banknote className="w-4 h-4 inline mr-1" /> Yêu cầu rút tiền {withdrawals.filter((w) => w.status === "pending").length > 0 && <span className="ml-1 bg-rose-500 text-white text-xs rounded-full px-1.5">{withdrawals.filter((w) => w.status === "pending").length}</span>}
+          </button>
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="mb-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 flex items-center gap-1"
+        >
+          <UserPlus className="w-4 h-4" /> Tạo CTV mới
         </button>
       </div>
 
@@ -190,6 +201,106 @@ export default function CollaboratorsTab() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <h2 className="text-xl font-bold text-slate-900">Tạo cộng tác viên mới</h2>
+            <p className="text-sm text-slate-500">Tạo tài khoản CTV với status=active. CTV có thể login ngay bằng email + mật khẩu này.</p>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email *</label>
+              <input
+                type="email"
+                required
+                value={newCtv.email}
+                onChange={(e) => setNewCtv({ ...newCtv, email: e.target.value })}
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu *</label>
+              <input
+                type="text"
+                required
+                minLength={6}
+                value={newCtv.password}
+                onChange={(e) => setNewCtv({ ...newCtv, password: e.target.value })}
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+                placeholder="Tối thiểu 6 ký tự"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Họ tên *</label>
+              <input
+                type="text"
+                required
+                value={newCtv.fullName}
+                onChange={(e) => setNewCtv({ ...newCtv, fullName: e.target.value })}
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Số điện thoại *</label>
+              <input
+                type="tel"
+                required
+                value={newCtv.phone}
+                onChange={(e) => setNewCtv({ ...newCtv, phone: e.target.value })}
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewCtv({ email: "", password: "", fullName: "", phone: "" });
+                }}
+                className="flex-1 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50"
+              >
+                Huỷ
+              </button>
+              <button
+                type="button"
+                disabled={creating}
+                onClick={async () => {
+                  if (!newCtv.email || !newCtv.password || !newCtv.fullName || !newCtv.phone) {
+                    toast.error("Vui lòng điền đầy đủ thông tin");
+                    return;
+                  }
+                  if (newCtv.password.length < 6) {
+                    toast.error("Mật khẩu tối thiểu 6 ký tự");
+                    return;
+                  }
+                  setCreating(true);
+                  try {
+                    const res = await fetch("/api/admin/collaborators", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(newCtv),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || "Tạo thất bại");
+                    toast.success(`Đã tạo CTV ${newCtv.email}`);
+                    setShowCreateModal(false);
+                    setNewCtv({ email: "", password: "", fullName: "", phone: "" });
+                    loadCollabs();
+                  } catch (err: any) {
+                    toast.error(err.message);
+                  } finally {
+                    setCreating(false);
+                  }
+                }}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
+              >
+                {creating ? "Đang tạo..." : "Tạo CTV"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -15,6 +15,7 @@ import {
   LogOut,
   Lock,
   User,
+  Mail,
   Layers,
   Plus,
   X,
@@ -42,6 +43,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
 import { ProductForm } from "@/components/ProductForm";
 import CollaboratorsTab from "@/components/admin/CollaboratorsTab";
+import { FormInput, FormSelect, FormTextarea, SearchInput } from "@/components/form";
 
 import { toast, Toaster } from 'react-hot-toast';
 
@@ -1448,39 +1450,25 @@ export default function AdminDashboard() {
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Tài khoản</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                    <User className="w-5 h-5" />
-                  </span>
-                  <input 
-                    type="text" 
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
-                    placeholder="Tên đăng nhập"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
+              <FormInput
+                label="Tài khoản"
+                required
+                leadingIcon={<Mail className="w-4 h-4" />}
+                type="text"
+                placeholder="Tên đăng nhập"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                    <Lock className="w-5 h-5" />
-                  </span>
-                  <input 
-                    type="password" 
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
+              <FormInput
+                label="Mật khẩu"
+                required
+                leadingIcon={<Lock className="w-4 h-4" />}
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
 
               {error && (
                 <p className="text-sm text-red-500 font-medium">{error}</p>
@@ -2064,56 +2052,47 @@ export default function AdminDashboard() {
                             </div>
                             
                             <div className="space-y-4">
+                              <FormInput
+                                label="Tên khách hàng"
+                                required
+                                type="text"
+                                placeholder="Nguyễn Văn A"
+                                value={newOrder.customer_name}
+                                onChange={(e) => setNewOrder({...newOrder, customer_name: e.target.value})}
+                              />
+                              <FormInput
+                                label="Số điện thoại"
+                                required
+                                type="text"
+                                placeholder="0912345678"
+                                value={newOrder.phone}
+                                onChange={(e) => {
+                                  const phone = e.target.value;
+                                  const customer = derivedCustomers.find(c => c.phone === phone);
+                                  if (customer) {
+                                    setNewOrder({
+                                      ...newOrder,
+                                      phone,
+                                      customer_name: customer.name,
+                                      address: customer.address
+                                    });
+                                    toast.success("Đã tự động điền thông tin khách hàng cũ!");
+                                  } else {
+                                    setNewOrder({...newOrder, phone});
+                                  }
+                                }}
+                              />
+                              <FormInput
+                                label="Địa chỉ nhận hàng"
+                                required
+                                type="text"
+                                placeholder="Số nhà, tên đường, phường/xã..."
+                                value={newOrder.address}
+                                onChange={(e) => setNewOrder({...newOrder, address: e.target.value})}
+                              />
                               <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Tên khách hàng *</label>
-                                <input 
-                                  type="text" 
-                                  className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow placeholder-slate-400 text-slate-900"
-                                  placeholder="Nguyễn Văn A"
-                                  value={newOrder.customer_name}
-                                  onChange={(e) => setNewOrder({...newOrder, customer_name: e.target.value})}
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Số điện thoại *</label>
-                                <input 
-                                  type="text" 
-                                  className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow placeholder-slate-400 text-slate-900"
-                                  placeholder="0912345678"
-                                  value={newOrder.phone}
-                                  onChange={(e) => {
-                                    const phone = e.target.value;
-                                    const customer = derivedCustomers.find(c => c.phone === phone);
-                                    if (customer) {
-                                      setNewOrder({
-                                        ...newOrder,
-                                        phone,
-                                        customer_name: customer.name,
-                                        address: customer.address
-                                      });
-                                      toast.success("Đã tự động điền thông tin khách hàng cũ!");
-                                    } else {
-                                      setNewOrder({...newOrder, phone});
-                                    }
-                                  }}
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Địa chỉ nhận hàng *</label>
-                                <input
-                                  type="text"
-                                  className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow placeholder-slate-400 text-slate-900"
-                                  placeholder="Số nhà, tên đường, phường/xã..."
-                                  value={newOrder.address}
-                                  onChange={(e) => setNewOrder({...newOrder, address: e.target.value})}
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Cộng tác viên</label>
-                                <select
+                                <FormSelect
+                                  label="Cộng tác viên"
                                   value={newOrder.collaborator_id || ""}
                                   onChange={(e) => {
                                     const c = collabList.find((x) => x.id === e.target.value);
@@ -2123,7 +2102,6 @@ export default function AdminDashboard() {
                                       collaborator_code: c?.referral_code || null,
                                     });
                                   }}
-                                  className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
                                 >
                                   <option value="">-- Không có --</option>
                                   {collabList.filter((c) => c.status === "active").map((c) => (
@@ -2131,7 +2109,7 @@ export default function AdminDashboard() {
                                       {c.full_name || c.email} ({c.referral_code})
                                     </option>
                                   ))}
-                                </select>
+                                </FormSelect>
                                 {newOrder.collaborator_code && (
                                   <p className="text-xs text-slate-500 mt-1">Mã giới thiệu: <span className="font-semibold text-blue-600">{newOrder.collaborator_code}</span></p>
                                 )}
@@ -2143,16 +2121,13 @@ export default function AdminDashboard() {
                               <h4 className="font-bold text-slate-900">Phương thức thanh toán</h4>
                             </div>
                             
-                            <div>
-                              <select 
-                                className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
-                                value={newOrder.payment_method}
-                                onChange={(e) => setNewOrder({...newOrder, payment_method: e.target.value})}
-                              >
-                                <option value="COD">Thu tiền khi nhận hàng (COD)</option>
-                                <option value="Chuyển khoản">Chuyển khoản ngân hàng</option>
-                              </select>
-                            </div>
+                            <FormSelect
+                              value={newOrder.payment_method}
+                              onChange={(e) => setNewOrder({...newOrder, payment_method: e.target.value})}
+                            >
+                              <option value="COD">Thu tiền khi nhận hàng (COD)</option>
+                              <option value="Chuyển khoản">Chuyển khoản ngân hàng</option>
+                            </FormSelect>
                           </div>
 
                           {/* Right Column: Products (7/12) */}
@@ -2554,18 +2529,13 @@ export default function AdminDashboard() {
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full sm:w-auto">
                       <h2 className="font-bold text-slate-900 text-lg">Danh sách sản phẩm</h2>
-                      <div className="relative w-full sm:w-64">
-                        <input 
-                          type="text" 
-                          className="w-full text-sm border border-slate-200 rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:border-blue-500 text-slate-900 placeholder-slate-400"
-                          placeholder="Tìm sản phẩm..."
-                          value={adminProductSearch}
-                          onChange={(e) => setAdminProductSearch(e.target.value)}
-                        />
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Search className="w-4 h-4 text-slate-400" />
-                        </div>
-                      </div>
+                      <SearchInput
+                        containerClassName="w-full sm:w-64"
+                        leadingIcon={<Search className="w-4 h-4" />}
+                        placeholder="Tìm sản phẩm..."
+                        value={adminProductSearch}
+                        onChange={(e) => setAdminProductSearch(e.target.value)}
+                      />
                     </div>
                     <button 
                       onClick={() => setShowProductModal(true)}

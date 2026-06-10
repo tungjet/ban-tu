@@ -7,7 +7,7 @@ import { useCartStore } from "@/store/useCartStore";
 import { useFavoriteStore } from "@/store/useFavoriteStore";
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { useSession } from "next-auth/react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import SearchInput from "@/components/form/SearchInput";
 
@@ -80,8 +80,8 @@ export function Header() {
   const { items: favoriteItems } = useFavoriteStore();
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [accountAvatar, setAccountAvatar] = useState<string>("");
-  const [hasAccount, setHasAccount] = useState(false);
+  const { data: sessionData } = useSession();
+  const sessionUser = (sessionData?.user as any) ?? null;
   const { user: currentUser, isCollaborator } = useCurrentUser();
 
 
@@ -92,32 +92,8 @@ export function Header() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Đồng bộ trạng thái đăng nhập + avatar
-  useEffect(() => {
-    let active = true;
-
-    const apply = (user: { user_metadata?: Record<string, unknown> } | null | undefined) => {
-      if (!active) return;
-      if (user) {
-        const meta = (user.user_metadata || {}) as { avatar_url?: string };
-        setHasAccount(true);
-        setAccountAvatar(meta.avatar_url || "");
-      } else {
-        setHasAccount(false);
-        setAccountAvatar("");
-      }
-    };
-
-    supabase.auth.getSession().then(({ data: { session } }) => apply(session?.user ?? null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      apply(session?.user ?? null);
-    });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
-  }, []);
+  const hasAccount = Boolean(sessionUser);
+  const accountAvatar = (sessionUser?.image as string | undefined) ?? "";
 
   // Đóng menu khi resize lên desktop
   useEffect(() => {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Inter } from "next/font/google";
+import { SessionProvider } from "next-auth/react";
 import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
 import { FooterClient } from "@/components/FooterClient";
@@ -41,33 +42,35 @@ export default function RootLayout({
   return (
     <html lang="vi" className="h-full antialiased">
       <body className={`${inter.variable} font-sans min-h-full flex flex-col bg-slate-50 text-slate-900`}>
-        <Suspense fallback={<div className="h-16 border-b border-slate-200 bg-white" />}>
-          <Header />
-        </Suspense>
-        <CartDrawer />
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            duration: 3000,
-            style: {
-              borderRadius: "12px",
-              background: "#1e293b",
-              color: "#f8fafc",
-              fontSize: "14px",
-            },
-            success: {
-              iconTheme: { primary: "#22c55e", secondary: "#f8fafc" },
-            },
-            error: {
-              iconTheme: { primary: "#ef4444", secondary: "#f8fafc" },
-            },
-          }}
-        />
-        <div className="flex-1 w-full">
-          {children}
-        </div>
-        <FooterClient />
-        <ReferralCapture />
+        <SessionProvider>
+          <Suspense fallback={<div className="h-16 border-b border-slate-200 bg-white" />}>
+            <Header />
+          </Suspense>
+          <CartDrawer />
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              duration: 3000,
+              style: {
+                borderRadius: "12px",
+                background: "#1e293b",
+                color: "#f8fafc",
+                fontSize: "14px",
+              },
+              success: {
+                iconTheme: { primary: "#22c55e", secondary: "#f8fafc" },
+              },
+              error: {
+                iconTheme: { primary: "#ef4444", secondary: "#f8fafc" },
+              },
+            }}
+          />
+          <div className="flex-1 w-full">
+            {children}
+          </div>
+          <FooterClient />
+          <ReferralCapture />
+        </SessionProvider>
       </body>
     </html>
   );

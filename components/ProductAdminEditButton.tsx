@@ -1,40 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 
 interface ProductAdminEditButtonProps {
   productId: string | number;
 }
 
 export function ProductAdminEditButton({ productId }: ProductAdminEditButtonProps) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    const applySession = (hasSession: boolean) => {
-      if (!active) return;
-      setIsLoggedIn(hasSession);
-      setIsReady(true);
-    };
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      applySession(Boolean(session));
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySession(Boolean(session));
-    });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
-  }, []);
+  const { data, status } = useSession();
+  const isLoggedIn = status === "authenticated" && Boolean(data?.user);
+  const isReady = status !== "loading";
 
   if (!isReady || !isLoggedIn) return null;
 

@@ -6,7 +6,8 @@ import toast from "react-hot-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function CTVDashboardPage() {
-  const { profile } = useCurrentUser();
+  const { user } = useCurrentUser();
+  const profile = user as any;
   const [stats, setStats] = useState({ thisMonth: 0, totalEarned: 0 });
   const [copied, setCopied] = useState(false);
 

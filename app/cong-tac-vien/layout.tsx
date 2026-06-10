@@ -19,7 +19,8 @@ const tabs = [
 export default function CTVDashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, profile, isLoading, isCollaborator } = useCurrentUser();
+  const { user, isLoading, isCollaborator } = useCurrentUser();
+  const profile = user as any;
 
   useEffect(() => {
     if (isLoading) return;

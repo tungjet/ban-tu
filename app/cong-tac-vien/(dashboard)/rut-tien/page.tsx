@@ -19,7 +19,8 @@ interface WithdrawalRow {
 }
 
 export default function CTVDashboardWithdrawPage() {
-  const { profile, refresh } = useCurrentUser();
+  const { user, refresh } = useCurrentUser();
+  const profile = user as any;
   const [rows, setRows] = useState<WithdrawalRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState("");

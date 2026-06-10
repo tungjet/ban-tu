@@ -11,7 +11,8 @@ import { FormInput } from "@/components/form";
 
 export default function RegisterCTVPage() {
   const router = useRouter();
-  const { role, isLoading } = useCurrentUser();
+  const { user, isLoading } = useCurrentUser();
+  const role = user?.role ?? null;
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");

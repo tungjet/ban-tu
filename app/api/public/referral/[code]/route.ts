@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { connectDB } from "@/lib/db";
+import { User } from "@/lib/models/User";
 
 export async function GET(
   _request: NextRequest,
@@ -7,24 +8,16 @@ export async function GET(
 ) {
   const { code } = await params;
   const normalized = code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+  if (normalized.length < 4) return NextResponse.json({ valid: false }, { status: 404 });
 
-  if (normalized.length < 4) {
-    return NextResponse.json({ valid: false }, { status: 404 });
-  }
+  await connectDB();
+  const user = await User.findOne({
+    referralCode: normalized,
+    role: "collaborator",
+    status: "active",
+  }).select("_id referralCode").lean();
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-  const { data } = await supabase
-    .from("public_profiles_referral")
-    .select("id, referral_code")
-    .eq("referral_code", normalized)
-    .maybeSingle();
-
-  if (!data) {
-    return NextResponse.json({ valid: false }, { status: 404 });
-  }
+  if (!user) return NextResponse.json({ valid: false }, { status: 404 });
 
   const res = NextResponse.json({ valid: true, code: normalized });
   res.cookies.set("bantu_ref", normalized, {

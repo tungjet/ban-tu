@@ -1,63 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServiceClient } from "@/lib/api-auth";
-import { createClient } from "@supabase/supabase-js";
+import bcrypt from "bcryptjs";
+import { connectDB } from "@/lib/db";
+import { User } from "@/lib/models/User";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+
+  const { email, password, fullName, phone } = body;
+  if (!email || !password || !fullName || !phone) return NextResponse.json({ error: "Thiếu thông tin" }, { status: 400 });
+  if (password.length < 6) return NextResponse.json({ error: "Mật khẩu tối thiểu 6 ký tự" }, { status: 400 });
+  if (!/^0\d{9,10}$/.test(phone)) return NextResponse.json({ error: "Số điện thoại không hợp lệ" }, { status: 400 });
+
+  await connectDB();
+  const passwordHash = await bcrypt.hash(password, 10);
+
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    const user = await User.create({
+      email: email.toLowerCase().trim(),
+      passwordHash,
+      fullName,
+      phone,
+      role: "collaborator",
+      status: "pending",
+    });
+    return NextResponse.json({ ok: true, user_id: user._id.toString() });
+  } catch (err: any) {
+    if (err.code === 11000) return NextResponse.json({ error: "Email đã được đăng ký" }, { status: 400 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  const { email, password, full_name, phone } = body;
-
-  if (!email || !password || !full_name || !phone) {
-    return NextResponse.json({ error: "Thiếu thông tin" }, { status: 400 });
-  }
-  if (password.length < 6) {
-    return NextResponse.json({ error: "Mật khẩu tối thiểu 6 ký tự" }, { status: 400 });
-  }
-  if (!/^0\d{9,10}$/.test(phone)) {
-    return NextResponse.json({ error: "Số điện thoại không hợp lệ" }, { status: 400 });
-  }
-
-  const service = getServiceClient();
-
-  // Auto-confirm user via admin API (skip email verification)
-  const { data: created, error: createErr } = await service.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name },
-  });
-
-  if (createErr) {
-    return NextResponse.json({ error: createErr.message }, { status: 400 });
-  }
-  if (!created.user) {
-    return NextResponse.json({ error: "Đăng ký thất bại" }, { status: 400 });
-  }
-
-  const signUpData = { user: created.user };
-
-  const { error: profileErr } = await service.from("profiles").insert({
-    id: signUpData.user.id,
-    full_name,
-    phone,
-    role: "collaborator",
-    status: "pending",
-  });
-
-  if (profileErr) {
-    if (profileErr.code === "23505") {
-      return NextResponse.json({ error: "Email đã được đăng ký với vai trò khác" }, { status: 400 });
-    }
-    return NextResponse.json({ error: profileErr.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true, user_id: signUpData.user.id });
 }

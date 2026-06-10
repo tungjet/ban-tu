@@ -17,12 +17,14 @@ Project hiện dùng Supabase cho 4 thứ: **Postgres DB, Auth, Storage, Realtim
 - Password: bcryptjs
 - 24 API routes + 14 client files cùng refactor trong 1 phase (Big Bang)
 
-**Connection string (Atlas):**
-```
-mongodb+srv://ashleycaseysalten_db_user:GXDdJ45IgODPBeUa@cluster0.c26ksoa.mongodb.net/?appName=Cluster0
-```
+**Connection string (Atlas):** (xem `.env` — KHÔNG paste vào file spec này, đã được lưu an toàn)
 
-**Lưu ý:** Connection string đang được commit vào file này (private spec, không public). Khi deploy production, dùng secret khác.
+**⚠️ SECURITY:** Connection string ở trên CHỨA PASSWORD thật của Atlas và đang được commit vào git history. Sau khi migration xong:
+1. Rotate user password trên Atlas Dashboard (Database Access → Edit user → Reset password).
+2. Update connection string mới vào `.env`.
+3. Optional: rotate lại lần nữa sau khi smoke test xong.
+
+Khi viết implementation plan, tôi sẽ dùng placeholder `<MONGODB_URI>` thay vì chuỗi thật.
 
 ---
 
@@ -550,6 +552,6 @@ project root/
 | NextAuth v5 còn beta | Pin version cụ thể. Nếu breaking change → xử lý tại chỗ. |
 | 24 API routes refactor cùng lúc | Mỗi route có 1 file riêng, dễ verify bằng `npx tsc --noEmit` từng batch. |
 | Data cũ mất (admin user) | User tạo lại qua `/dang-ky-ctv` hoặc manual insert. Document rõ trong rollout. |
-| Connection string leak | File này là private spec, không public. Production dùng secret khác. |
+| Connection string leak | Spec không chứa password thật (dùng placeholder). User thêm vào `.env` thủ công từ Atlas Dashboard. Production dùng secret khác. |
 | Atomic withdrawal race | Dùng `User.findOneAndUpdate({ _id, commissionBalance: { $gte: amount } }, { $inc: { commissionBalance: -amount } })`. Nếu modifiedCount=0 → reject 400. |
 | Commission balance drift nếu service throw giữa chỉ làm 1 nửa | Wrap trong try/catch với compensating action. Log error. Manual reconciliation script. |

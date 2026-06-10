@@ -6,24 +6,46 @@ import toast from "react-hot-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function CTVDashboardSettingsPage() {
-  const { profile, refresh } = useCurrentUser();
+  const { profile } = useCurrentUser();
+  const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [bankName, setBankName] = useState("");
   const [bankAccount, setBankAccount] = useState("");
   const [bankHolder, setBankHolder] = useState("");
+  const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingBank, setSavingBank] = useState(false);
 
-  useEffect(() => {
-    if (profile) {
-      setFullName(profile.fullName || "");
-      setPhone(profile.phone || "");
-      setBankName(profile.bankName || "");
-      setBankAccount(profile.bankAccount || "");
-      setBankHolder(profile.bankHolder || "");
+  const load = async () => {
+    try {
+      const res = await fetch("/api/collaborator/profile", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        const p = data.profile;
+        setEmail(p.email || "");
+        setFullName(p.fullName || "");
+        setPhone(p.phone || "");
+        setBankName(p.bankName || "");
+        setBankAccount(p.bankAccount || "");
+        setBankHolder(p.bankHolder || "");
+      }
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
     }
-  }, [profile]);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  // After profile changes, NextAuth may not have the new fullName cached.
+  // We re-read from /api/collaborator/profile which is the source of truth.
+  if (profile) {
+    if (!email && profile.email) setEmail(profile.email);
+  }
 
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +64,7 @@ export default function CTVDashboardSettingsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Lưu thất bại");
       toast.success("Đã lưu thông tin cá nhân");
-      await refresh();
+      await load();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -67,7 +89,7 @@ export default function CTVDashboardSettingsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Lưu thất bại");
       toast.success("Đã lưu thông tin ngân hàng");
-      await refresh();
+      await load();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -108,7 +130,7 @@ export default function CTVDashboardSettingsPage() {
           <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
           <input
             type="email"
-            value={profile?.email || ""}
+            value={email}
             disabled
             className="w-full px-4 py-2.5 border border-slate-200 rounded-xl bg-slate-50 text-slate-500 cursor-not-allowed"
           />

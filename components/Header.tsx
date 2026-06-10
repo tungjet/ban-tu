@@ -9,6 +9,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import SearchInput from "@/components/form/SearchInput";
 
 const NAV_LINKS = [
   { href: "/", label: "Trang chủ" },
@@ -50,24 +51,26 @@ function SearchBar({ className }: { className?: string }) {
   };
 
   return (
-    <form onSubmit={handleSearch} className={`relative ${className ?? ""}`}>
-      <input
-        type="text"
-        placeholder="Tìm kiếm sản phẩm..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full text-sm text-slate-900 border border-slate-200 rounded-full px-4 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 bg-slate-50"
-      />
-      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-      {search && (
-        <button
-          type="button"
-          onClick={() => { setSearch(""); router.push("/san-pham"); }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      )}
+    <form onSubmit={handleSearch} className={className}>
+      <div className="relative">
+        <SearchInput
+          type="text"
+          placeholder="Tìm kiếm sản phẩm..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          leadingIcon={<Search className="w-4 h-4" />}
+          className="rounded-full py-2 bg-slate-50"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => { setSearch(""); router.push("/san-pham"); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
     </form>
   );
 }

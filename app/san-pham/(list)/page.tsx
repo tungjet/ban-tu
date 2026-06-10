@@ -196,12 +196,9 @@ function ProductListingContent() {
 
               {renderFilterContent()}
 
-              <button
-                onClick={() => {/* filters applied reactively */}}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors cursor-pointer"
-              >
+              <div className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl text-center">
                 {sortedProducts.length} kết quả
-              </button>
+              </div>
             </div>
           </aside>
 

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Phone, MessageCircle, MapPin } from "lucide-react";
+import { Phone, MapPin } from "lucide-react";
+import { ZaloIcon } from "@/components/ZaloIcon";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
 
 export function FooterClient() {
@@ -36,7 +37,7 @@ export function FooterClient() {
               )}
               {settings.zalo && (
                 <li className="flex items-center gap-2">
-                  <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                  <ZaloIcon className="w-3.5 h-3.5 shrink-0" />
                   <a href={zaloHref} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
                     Zalo: {settings.zalo}
                   </a>
@@ -86,9 +87,9 @@ export function FooterClient() {
             target="_blank"
             rel="noreferrer"
             title={`Zalo: ${settings.zalo}`}
-            className="bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 hover:scale-110 transition-all flex items-center justify-center cursor-pointer"
+            className="bg-[#0068ff] text-white p-3 rounded-full shadow-lg hover:bg-[#0056d6] hover:scale-110 transition-all flex items-center justify-center cursor-pointer shadow-blue-200/50 hover:shadow-lg hover:shadow-blue-300/50"
           >
-            <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6" />
+            <ZaloIcon className="w-5 h-5 sm:w-6 sm:h-6" />
           </a>
         )}
         {settings.facebook && (

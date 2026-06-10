@@ -1,10 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { 
   Phone, 
-  MessageCircle, 
   MapPin, 
   ShieldCheck, 
   CheckCircle2, 
@@ -15,10 +13,9 @@ import {
   Truck, 
   Sparkles, 
   PhoneCall, 
-  ChevronRight,
-  HelpCircle,
-  Clock
+  HelpCircle
 } from "lucide-react";
+import { ZaloIcon } from "@/components/ZaloIcon";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
 
 export function GioiThieuClient() {
@@ -116,7 +113,7 @@ export function GioiThieuClient() {
               rel="noreferrer"
               className="px-8 py-4 bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold rounded-xl transition-all flex items-center gap-2 backdrop-blur-xs hover:scale-105"
             >
-              <MessageCircle className="w-5 h-5 text-sky-400" /> Chat qua Zalo
+              <ZaloIcon className="w-5 h-5 text-[#0068ff] bg-white rounded-full p-0.5 shrink-0" /> Chat qua Zalo
             </a>
           </div>
         </div>
@@ -318,9 +315,9 @@ export function GioiThieuClient() {
               href={zaloHref}
               target="_blank"
               rel="noreferrer"
-              className="px-8 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2 hover:scale-105"
+              className="px-8 py-3.5 bg-[#0068ff] hover:bg-[#0056d6] text-white font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2 hover:scale-105 shadow-blue-200/50 hover:shadow-lg hover:shadow-blue-300/50"
             >
-              <MessageCircle className="w-4 h-4" /> Liên hệ Zalo
+              <ZaloIcon className="w-4 h-4 shrink-0" /> Liên hệ Zalo
             </a>
             {facebookHref && facebookHref !== "#" && (
               <a

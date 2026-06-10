@@ -49,6 +49,34 @@ function getInitial(name: string, email: string) {
   return source.charAt(0).toUpperCase() || "U";
 }
 
+const CANCELLED_ORDER_STATUS = "Đã huỷ";
+
+const ORDER_NEXT_STATUS: Record<string, string | null> = {
+  "Chờ xử lý": "Đã xác nhận",
+  "Đã xác nhận": "Đang giao",
+  "Đang giao": "Đã hoàn thành",
+  "Đã hoàn thành": null,
+  [CANCELLED_ORDER_STATUS]: null,
+};
+
+const ORDER_NEXT_ACTION_LABEL: Record<string, string> = {
+  "Đã xác nhận": "Xác nhận",
+  "Đang giao": "Giao hàng",
+  "Đã hoàn thành": "Hoàn thành",
+};
+
+function getNextOrderStatus(status: string) {
+  return ORDER_NEXT_STATUS[status] ?? null;
+}
+
+function canCancelOrder(status: string) {
+  return status !== "Đã hoàn thành" && status !== CANCELLED_ORDER_STATUS;
+}
+
+function isValidOrderStatusTransition(currentStatus: string, nextStatus: string) {
+  return nextStatus === getNextOrderStatus(currentStatus) || (nextStatus === CANCELLED_ORDER_STATUS && canCancelOrder(currentStatus));
+}
+
 export default function AdminDashboard() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -448,6 +476,11 @@ export default function AdminDashboard() {
     const currentStatus = order.status;
     if (currentStatus === nextStatus) return;
 
+    if (!isValidOrderStatusTransition(currentStatus, nextStatus)) {
+      toast.error("Thao tác đổi trạng thái không hợp lệ.");
+      return;
+    }
+
     const code = order.order_code || `BT-${order.id.toString().slice(-5)}`;
     setConfirmDialog({
       show: true,
@@ -473,6 +506,42 @@ export default function AdminDashboard() {
         }
       }
     });
+  };
+
+  const renderOrderStatusActions = (order: any, isFromDetail = false) => {
+    const nextStatus = getNextOrderStatus(order.status);
+    const canCancel = canCancelOrder(order.status);
+
+    if (!nextStatus && !canCancel) {
+      return (
+        <span className="text-xs font-semibold text-slate-400">
+          Không có hành động
+        </span>
+      );
+    }
+
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {nextStatus && (
+          <button
+            type="button"
+            onClick={() => handleStatusChangeWithConfirm(order, nextStatus, isFromDetail)}
+            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+          >
+            {ORDER_NEXT_ACTION_LABEL[nextStatus] || nextStatus}
+          </button>
+        )}
+        {canCancel && (
+          <button
+            type="button"
+            onClick={() => handleStatusChangeWithConfirm(order, CANCELLED_ORDER_STATUS, isFromDetail)}
+            className="inline-flex items-center justify-center rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50"
+          >
+            Huỷ
+          </button>
+        )}
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -1290,19 +1359,9 @@ export default function AdminDashboard() {
 
             {/* Footer / Status Changer */}
             <div className="p-6 border-t border-slate-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-slate-50/50">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-slate-700">Trạng thái:</span>
-                <select 
-                  value={selectedOrderDetail.status}
-                  onChange={(e) => handleStatusChangeWithConfirm(selectedOrderDetail, e.target.value, true)}
-                  className="text-sm border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-900 bg-white"
-                >
-                  <option value="Chờ xử lý">Chờ xử lý</option>
-                  <option value="Đã xác nhận">Đã xác nhận</option>
-                  <option value="Đang giao">Đang giao</option>
-                  <option value="Đã hoàn thành">Đã hoàn thành</option>
-                  <option value="Đã huỷ">Đã huỷ</option>
-                </select>
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-semibold text-slate-700">Hành động:</span>
+                {renderOrderStatusActions(selectedOrderDetail, true)}
               </div>
               
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -1772,7 +1831,7 @@ export default function AdminDashboard() {
                     <div className="lg:col-span-2 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
                       <div className="flex items-center justify-between mb-6">
                         <h2 className="font-bold text-slate-900 text-base sm:text-lg">Đơn hàng gần đây</h2>
-                        <button className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium">Xem tất cả</button>
+                        <button onClick={() => setActiveTab("orders")} className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer">Xem tất cả</button>
                       </div>
                       
                       {/* Mobile Card List (block sm:hidden) */}
@@ -1874,7 +1933,7 @@ export default function AdminDashboard() {
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                       <div className="flex items-center justify-between mb-6">
                         <h2 className="font-bold text-slate-900">Top bán chạy</h2>
-                        <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">Chi tiết</button>
+                        <button onClick={() => setActiveTab("products")} className="text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer">Chi tiết</button>
                       </div>
                       
                       <div className="space-y-4">
@@ -2286,23 +2345,13 @@ export default function AdminDashboard() {
                               </div>
                             </div>
 
-                            {/* Quick status selector & Delete */}
+                            {/* Quick order actions & Delete */}
                             <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-50" onClick={(e) => e.stopPropagation()}>
                               <div className="text-[10px] text-slate-400">
-                                Đổi trạng thái:
+                                Hành động:
                               </div>
                               <div className="flex items-center gap-2">
-                                <select 
-                                  value={order.status}
-                                  onChange={(e) => handleStatusChangeWithConfirm(order, e.target.value)}
-                                  className="text-xs border border-slate-200 rounded-lg p-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-900 font-semibold cursor-pointer"
-                                >
-                                  <option value="Chờ xử lý">Chờ xử lý</option>
-                                  <option value="Đã xác nhận">Đã xác nhận</option>
-                                  <option value="Đang giao">Đang giao</option>
-                                  <option value="Đã hoàn thành">Đã hoàn thành</option>
-                                  <option value="Đã huỷ">Đã huỷ</option>
-                                </select>
+                                {renderOrderStatusActions(order)}
                                 <button
                                   type="button"
                                   onClick={() => deleteOrder(order)}
@@ -2375,17 +2424,7 @@ export default function AdminDashboard() {
                                 </td>
                                 <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                                   <div className="flex items-center gap-2">
-                                    <select 
-                                      value={order.status}
-                                      onChange={(e) => handleStatusChangeWithConfirm(order, e.target.value)}
-                                      className="text-xs border border-slate-200 rounded-lg p-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-900 font-semibold cursor-pointer"
-                                    >
-                                      <option value="Chờ xử lý">Chờ xử lý</option>
-                                      <option value="Đã xác nhận">Đã xác nhận</option>
-                                      <option value="Đang giao">Đang giao</option>
-                                      <option value="Đã hoàn thành">Đã hoàn thành</option>
-                                      <option value="Đã huỷ">Đã huỷ</option>
-                                    </select>
+                                    {renderOrderStatusActions(order)}
                                     <button
                                       type="button"
                                       onClick={() => deleteOrder(order)}

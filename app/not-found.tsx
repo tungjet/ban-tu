@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Home, Search, ArrowLeft } from "lucide-react";
+import { Home, Search } from "lucide-react";
 import type { Metadata } from "next";
+import BackButton from "./not-found/BackButton";
 
 export const metadata: Metadata = {
   title: "Không tìm thấy trang | Tủ Nhựa Giá Rẻ",
@@ -11,7 +12,6 @@ export default function NotFound() {
   return (
     <main className="min-h-[70vh] bg-slate-50 flex items-center justify-center px-4">
       <div className="text-center max-w-md">
-        {/* Số 404 lớn */}
         <div className="text-[120px] font-black text-slate-200 leading-none select-none">
           404
         </div>
@@ -41,13 +41,7 @@ export default function NotFound() {
           </Link>
         </div>
 
-        <Link
-          href="javascript:history.back()"
-          className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-blue-600 mt-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Quay lại trang trước
-        </Link>
+        <BackButton />
       </div>
     </main>
   );

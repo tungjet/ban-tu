@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Save, Loader2, Trash2, Bold, Italic,
   Underline as UnderlineIcon, Strikethrough, Heading1, Heading2,
@@ -29,6 +29,84 @@ function RequiredMark() {
   return <span className="text-red-500">*</span>;
 }
 
+// Giới hạn độ dài slug: chuẩn SEO là ~75 ký tự, để an toàn đặt 80
+const SLUG_MAX_LENGTH = 80;
+// Tối đa 5 lần thử khi slug bị trùng (thêm suffix -2, -3, ...)
+const SLUG_DUPLICATE_RETRY_LIMIT = 5;
+
+// Tạo slug thân thiện SEO từ tên sản phẩm: bỏ dấu tiếng Việt, ký tự đặc biệt, gọn khoảng trắng
+function generateSlug(input: string): string {
+  if (!input) return "";
+
+  // Bước 1: thay thế thủ công các ký tự tiếng Việt phổ biến
+  // (một số trình duyệt/engine NFD không phân tách đúng "đ", "Đ")
+  const vietnameseMap: Record<string, string> = {
+    đ: "d",
+    Đ: "d",
+    ă: "a",
+    Ă: "a",
+    â: "a",
+    Â: "a",
+    ê: "e",
+    Ê: "e",
+    ô: "o",
+    Ô: "o",
+    ơ: "o",
+    Ơ: "o",
+    ư: "u",
+    Ư: "u",
+  };
+  let result = input.toString();
+  for (const [key, value] of Object.entries(vietnameseMap)) {
+    result = result.split(key).join(value);
+  }
+
+  // Bước 2: NFD + bỏ combining marks (dấu sắc, huyền, hỏi, ngã, nặng)
+  result = result
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  // Bước 3: chỉ giữ chữ thường, số, khoảng trắng và dấu gạch ngang
+  result = result
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  // Bước 4: cắt còn tối đa SLUG_MAX_LENGTH ký tự
+  // (cắt theo ranh giới dấu - gần nhất để không cắt giữa từ)
+  if (result.length > SLUG_MAX_LENGTH) {
+    let truncated = result.slice(0, SLUG_MAX_LENGTH);
+    const lastDash = truncated.lastIndexOf("-");
+    if (lastDash > SLUG_MAX_LENGTH * 0.6) {
+      truncated = truncated.slice(0, lastDash);
+    }
+    result = truncated.replace(/-+$/g, "");
+  }
+
+  return result;
+}
+
+// Thêm suffix khi slug bị trùng: "abc" -> "abc-2" -> "abc-3"
+function appendSlugSuffix(base: string, n: number): string {
+  const suffix = `-${n}`;
+  // Đảm bảo tổng độ dài vẫn trong giới hạn
+  const maxBase = SLUG_MAX_LENGTH - suffix.length;
+  return base.slice(0, maxBase).replace(/-+$/g, "") + suffix;
+}
+
+// Check xem message lỗi của Supabase có phải unique violation không
+function isUniqueViolation(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: string; message?: string };
+  return (
+    e.code === "23505" || // Postgres unique_violation
+    (typeof e.message === "string" && /duplicate key|unique constraint/i.test(e.message))
+  );
+}
+
 function ImagePreviewModal({
   image,
   onClose,
@@ -39,26 +117,26 @@ function ImagePreviewModal({
   if (!image) return null;
 
   return (
-    <div className="fixed inset-0 z-[999] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+    <div className="z-[999] fixed inset-0 flex justify-center items-center bg-slate-950/75 backdrop-blur-sm p-4">
+      <div className="flex flex-col bg-white shadow-2xl rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden">
+        <div className="flex justify-between items-center gap-3 px-4 py-3 border-slate-100 border-b">
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-slate-900 truncate">{image.title || "Xem ảnh"}</h3>
-            <p className="text-xs text-slate-500">Ảnh preview kích thước lớn</p>
+            <h3 className="font-bold text-slate-900 text-sm truncate">{image.title || "Xem ảnh"}</h3>
+            <p className="text-slate-500 text-xs">Ảnh preview kích thước lớn</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            className="flex justify-center items-center hover:bg-slate-100 rounded-full w-9 h-9 text-slate-400 hover:text-slate-700"
           >
             ✕
           </button>
         </div>
-        <div className="bg-slate-100 p-3 sm:p-5 overflow-auto flex-1">
+        <div className="flex-1 bg-slate-100 p-3 sm:p-5 overflow-auto">
           <img
             src={image.src}
             alt={image.title || "Preview"}
-            className="mx-auto max-h-[78vh] max-w-full rounded-xl object-contain shadow-sm bg-white"
+            className="bg-white shadow-sm mx-auto rounded-xl max-w-full max-h-[78vh] object-contain"
           />
         </div>
       </div>
@@ -100,12 +178,26 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [imagePreviewModal, setImagePreviewModal] = useState<{ src: string; title?: string } | null>(null);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!colorPickerOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setColorPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [colorPickerOpen]);
 
   const formatPriceInput = (value: string) => {
     const digits = value.replace(/\D/g, "");
     return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
 
+  const [slugTouched, setSlugTouched] = useState(false); // true khi user tự gõ slug -> không auto-generate nữa
   const [form, setForm] = useState({
     name: "",
     price: "",
@@ -176,12 +268,13 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           slug: product.slug || "",
           is_published: product.is_published !== false,
         });
+        setSlugTouched(!!product.slug); // chế độ sửa: nếu đã có slug thì coi như user đã set
 
         const existing = product.images && product.images.length > 0
           ? product.images
           : product.image_url
-          ? [product.image_url]
-          : [];
+            ? [product.image_url]
+            : [];
         setImagePreviews(existing);
 
         if (editor) {
@@ -202,6 +295,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           slug: "",
           is_published: true,
         });
+        setSlugTouched(false); // chế độ thêm: chưa ai đụng slug
         setImagePreviews([]);
         setSelectedFiles([]);
         if (editor) {
@@ -211,6 +305,9 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
     }, 0);
     return () => window.clearTimeout(timer);
   }, [product, editor]);
+
+  // Auto-gợi ý slug từ tên khi user gõ tên mà ô slug đang trống (chỉ ở chế độ thêm mới)
+  // Xử lý trực tiếp trong onChange của input name để tránh setState-in-effect
 
   // Handle TipTap hyperlink adding
   const setLink = useCallback(() => {
@@ -305,7 +402,13 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
         ? Number(form.original_price.replace(/,/g, ""))
         : null;
 
-      const payload = {
+      // Sinh slug từ tên nếu ô slug rỗng; đảm bảo đã được cắt theo giới hạn
+      const baseSlug = generateSlug(
+        form.slug.trim() || form.name.trim()
+      );
+      const finalSlug = baseSlug || null;
+
+      const basePayload = {
         name: form.name.trim(),
         price: priceValue,
         original_price: originalPriceValue,
@@ -316,7 +419,6 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
         features: cleanFeatures,
         rating: ratingValue,
         sold: soldValue,
-        slug: form.slug.trim() || null,
         is_published: form.is_published,
       };
 
@@ -324,18 +426,54 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
       if (isEditMode && product) {
         const { error } = await supabase
           .from("products")
-          .update(payload)
+          .update({ ...basePayload, slug: finalSlug })
           .eq("id", product.id);
 
         if (error) throw error;
         toast.success("Đã cập nhật sản phẩm thành công!");
       } else {
-        const { error } = await supabase
-          .from("products")
-          .insert([payload]);
+        // Thêm mới: nếu slug trùng, tự thêm suffix -2, -3, ... rồi thử lại
+        let attempt = 0;
+        let lastError: unknown = null;
+        let success = false;
 
-        if (error) throw error;
-        toast.success("Đã thêm sản phẩm mới thành công!");
+        while (attempt <= SLUG_DUPLICATE_RETRY_LIMIT) {
+          const slugToTry =
+            finalSlug === null
+              ? null
+              : attempt === 0
+                ? finalSlug
+                : appendSlugSuffix(finalSlug, attempt + 1);
+
+          const { error } = await supabase
+            .from("products")
+            .insert([{ ...basePayload, slug: slugToTry }]);
+
+          if (!error) {
+            if (attempt > 0) {
+              toast.success(
+                `Đã thêm sản phẩm (slug "${finalSlug}" bị trùng, dùng "${slugToTry}")`
+              );
+            } else {
+              toast.success("Đã thêm sản phẩm mới thành công!");
+            }
+            success = true;
+            break;
+          }
+
+          // Nếu lỗi KHÔNG phải trùng slug -> dừng ngay
+          if (!isUniqueViolation(error) || finalSlug === null) {
+            lastError = error;
+            break;
+          }
+          lastError = error;
+          attempt++;
+        }
+
+        if (!success) {
+          if (lastError) throw lastError;
+          throw new Error("Không thể tạo slug duy nhất sau nhiều lần thử");
+        }
       }
 
       onSaved();
@@ -343,27 +481,34 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
     } catch (err: unknown) {
       console.error(err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error("Lỗi khi lưu sản phẩm: " + errorMessage);
+      // Lỗi trùng slug cuối cùng -> thông báo dễ hiểu hơn
+      if (isUniqueViolation(err)) {
+        toast.error(
+          "Slug này đã tồn tại và hệ thống không thể tự tạo slug thay thế. Vui lòng đổi slug khác."
+        );
+      } else {
+        toast.error("Lỗi khi lưu sản phẩm: " + errorMessage);
+      }
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+    <div className="bg-white shadow-sm border border-slate-100 rounded-2xl overflow-hidden">
       <ImagePreviewModal image={imagePreviewModal} onClose={() => setImagePreviewModal(null)} />
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-linear-to-r from-blue-50/50 to-white">
+      <div className="flex justify-between items-center bg-linear-to-r from-blue-50/50 to-white p-6 border-slate-100 border-b">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onCancel}
-            className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors w-10 h-10 flex items-center justify-center"
+            className="flex justify-center items-center hover:bg-slate-100 p-2 rounded-full w-10 h-10 text-slate-500 hover:text-slate-900 transition-colors"
             title="Quay lại danh sách"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h2 className="text-xl font-bold text-slate-900">
+          <h2 className="font-bold text-slate-900 text-xl">
             {isEditMode ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới"}
           </h2>
         </div>
@@ -371,7 +516,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           <button
             type="button"
             onClick={onCancel}
-            className="px-5 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-100 transition-colors text-sm"
+            className="hover:bg-slate-100 px-5 py-2.5 border border-slate-200 rounded-xl font-semibold text-slate-700 text-sm transition-colors"
           >
             Huỷ
           </button>
@@ -379,7 +524,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
             type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-200/50 flex items-center justify-center gap-2 text-sm"
+            className="flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 shadow-blue-200/50 shadow-lg px-5 py-2.5 rounded-xl font-bold text-white text-sm transition-all"
           >
             {isSaving ? (
               <>
@@ -395,46 +540,57 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
       </div>
 
       {/* Content Body Form */}
-      <form onSubmit={handleSave} className="p-6 space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <form onSubmit={handleSave} className="space-y-6 p-6">
+        <div className="gap-6 grid grid-cols-1 lg:grid-cols-3">
 
           {/* Left Column: Product Information (2/3) */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="space-y-4 lg:col-span-2">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Tên sản phẩm <RequiredMark /></label>
+              <label className="block mb-1 font-semibold text-slate-700 text-sm">Tên sản phẩm <RequiredMark /></label>
               <input
                 type="text"
                 required
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e) => {
+                  const newName = e.target.value;
+                  setForm((prev) => {
+                    // Chế độ sửa: không tự động ghi đè slug
+                    if (product) return { ...prev, name: newName };
+                    // Chế độ thêm + chưa ai tự gõ slug: tự sinh lại từ tên
+                    if (!slugTouched) {
+                      return { ...prev, name: newName, slug: generateSlug(newName) };
+                    }
+                    return { ...prev, name: newName };
+                  });
+                }}
                 placeholder="Ví dụ: Tủ nhựa Ecoplast 4 cánh"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 text-sm"
+                className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="gap-4 grid grid-cols-1 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Giá bán (VNĐ)</label>
+                <label className="block mb-1 font-semibold text-slate-700 text-sm">Giá bán (VNĐ)</label>
                 <input
                   type="text"
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: formatPriceInput(e.target.value) })}
                   placeholder="Ví dụ: 3,500,000"
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 text-sm"
+                  className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Giá gốc (Tùy chọn)</label>
+                <label className="block mb-1 font-semibold text-slate-700 text-sm">Giá gốc (Tùy chọn)</label>
                 <div className="relative">
                   <input
                     type="text"
                     value={form.original_price}
                     onChange={(e) => setForm({ ...form, original_price: formatPriceInput(e.target.value) })}
                     placeholder="Ví dụ: 4,000,000"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 text-sm pr-20"
+                    className="px-4 py-2.5 pr-20 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
                   />
                   {form.price && form.original_price && Number(form.original_price.replace(/,/g, "")) > Number(form.price.replace(/,/g, "")) && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                    <div className="top-1/2 right-3 absolute bg-green-50 px-2 py-0.5 rounded font-bold text-[10px] text-green-600 -translate-y-1/2">
                       Giảm {Math.round((1 - Number(form.price.replace(/,/g, "")) / Number(form.original_price.replace(/,/g, ""))) * 100)}%
                     </div>
                   )}
@@ -442,14 +598,14 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="gap-4 grid grid-cols-1 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Danh mục <RequiredMark /></label>
+                <label className="block mb-1 font-semibold text-slate-700 text-sm">Danh mục <RequiredMark /></label>
                 <select
                   required
                   value={form.category_id}
                   onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 text-sm bg-white"
+                  className="bg-white px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
                 >
                   <option value="">-- Chọn danh mục --</option>
                   {form.category_id && !selectedCategoryExists && (
@@ -466,20 +622,46 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Slug (Đường dẫn tĩnh)</label>
+                <label className="block mb-1 font-semibold text-slate-700 text-sm">
+                  Slug (Đường dẫn tĩnh)
+                </label>
                 <input
                   type="text"
                   value={form.slug}
-                  onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                  placeholder="vd: tu-nhua-ecoplast-4-canh"
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 text-sm"
+                  maxLength={SLUG_MAX_LENGTH}
+                  onChange={(e) => {
+                    setSlugTouched(true); // user đã tự gõ -> dừng auto-generate
+                    setForm({ ...form, slug: e.target.value });
+                  }}
+                  placeholder="Để trống sẽ tự tạo từ tên sản phẩm (vd: tu-nhua-ecoplast-4-canh)"
+                  className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
                 />
+                <div className="flex items-center justify-between mt-1 gap-2">
+                  {form.slug ? (
+                    <p className="text-[11px] text-slate-500 break-all">
+                      /san-pham/{form.slug}
+                    </p>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">
+                      Tối đa {SLUG_MAX_LENGTH} ký tự
+                    </span>
+                  )}
+                  <span
+                    className={`text-[10px] shrink-0 ${
+                      form.slug.length > SLUG_MAX_LENGTH * 0.9
+                        ? "text-red-500 font-semibold"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    {form.slug.length}/{SLUG_MAX_LENGTH}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="gap-4 grid grid-cols-1 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Rating mặc định (1–5)</label>
+                <label className="block mb-1 font-semibold text-slate-700 text-sm">Rating mặc định (1–5)</label>
                 <input
                   type="number"
                   min="1"
@@ -488,18 +670,18 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                   value={form.rating}
                   onChange={(e) => setForm({ ...form, rating: e.target.value })}
                   placeholder="Ví dụ: 4.8"
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 text-sm"
+                  className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Đã bán mặc định</label>
+                <label className="block mb-1 font-semibold text-slate-700 text-sm">Đã bán mặc định</label>
                 <input
                   type="number"
                   min="0"
                   value={form.sold}
                   onChange={(e) => setForm({ ...form, sold: e.target.value })}
                   placeholder="Ví dụ: 156"
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 text-sm"
+                  className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
                 />
               </div>
             </div>
@@ -510,41 +692,41 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                 id="unified_is_published"
                 checked={form.is_published}
                 onChange={(e) => setForm({ ...form, is_published: e.target.checked })}
-                className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                className="border-slate-300 rounded focus:ring-blue-500 w-4 h-4 text-blue-600 cursor-pointer"
               />
-              <label htmlFor="unified_is_published" className="text-sm font-semibold text-slate-700 cursor-pointer">
+              <label htmlFor="unified_is_published" className="font-semibold text-slate-700 text-sm cursor-pointer">
                 Hiển thị sản phẩm công khai (nếu tắt, sản phẩm sẽ bị ẩn khỏi cửa hàng)
               </label>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Đặc điểm nổi bật</label>
-              <span className="block text-xs text-slate-400 mb-1.5">Mỗi dòng là 1 đặc điểm nổi bật.</span>
+              <label className="block mb-1 font-semibold text-slate-700 text-sm">Đặc điểm nổi bật</label>
+              <span className="block mb-1.5 text-slate-400 text-xs">Mỗi dòng là 1 đặc điểm nổi bật.</span>
               <textarea
                 value={form.features}
                 onChange={(e) => setForm({ ...form, features: e.target.value })}
                 rows={3}
                 placeholder="Nhựa Ecoplast nguyên sinh, không mùi, cực bền&#10;Bản lề giảm chấn inox 304&#10;Bảo hành hậu mãi 10 năm"
-                className="w-full p-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-900 text-sm resize-none"
+                className="p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all resize-none"
               />
             </div>
 
             {/* Tiptap Rich Text Description */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Mô tả sản phẩm chi tiết</label>
-              <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+              <label className="block mb-1 font-semibold text-slate-700 text-sm">Mô tả sản phẩm chi tiết</label>
+              <div className="bg-white shadow-xs border border-slate-200 rounded-2xl overflow-hidden">
                 {/* Tiptap Toolbar */}
-                <div className="bg-slate-50 px-2 py-1.5 border-b border-slate-200 flex flex-wrap gap-0.5 items-center">
+                <div className="flex flex-wrap items-center gap-0.5 bg-slate-50 px-2 py-1.5 border-slate-200 border-b">
                   <button type="button" title="Hoàn tác" onClick={() => editor?.chain().focus().undo().run()} disabled={!editor?.can().undo()} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${!editor?.can().undo() ? 'opacity-30 cursor-not-allowed' : 'text-slate-600'}`}><Undo2 className="w-4 h-4" /></button>
                   <button type="button" title="Làm lại" onClick={() => editor?.chain().focus().redo().run()} disabled={!editor?.can().redo()} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${!editor?.can().redo() ? 'opacity-30 cursor-not-allowed' : 'text-slate-600'}`}><Redo2 className="w-4 h-4" /></button>
 
-                  <div className="w-px h-6 bg-slate-300 mx-1" />
+                  <div className="bg-slate-300 mx-1 w-px h-6" />
 
                   <button type="button" title="Tiêu đề 1" onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('heading', { level: 1 }) ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><Heading1 className="w-4 h-4" /></button>
                   <button type="button" title="Tiêu đề 2" onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('heading', { level: 2 }) ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><Heading2 className="w-4 h-4" /></button>
                   <button type="button" title="Tiêu đề 3" onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('heading', { level: 3 }) ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><Heading3 className="w-4 h-4" /></button>
 
-                  <div className="w-px h-6 bg-slate-300 mx-1" />
+                  <div className="bg-slate-300 mx-1 w-px h-6" />
 
                   <button type="button" title="In đậm" onClick={() => editor?.chain().focus().toggleBold().run()} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('bold') ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><Bold className="w-4 h-4" /></button>
                   <button type="button" title="In nghiêng" onClick={() => editor?.chain().focus().toggleItalic().run()} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('italic') ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><Italic className="w-4 h-4" /></button>
@@ -553,51 +735,78 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                   <button type="button" title="Chỉ số trên" onClick={() => editor?.chain().focus().toggleSuperscript().run()} className={`hidden md:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('superscript') ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><SuperscriptIcon className="w-4 h-4" /></button>
                   <button type="button" title="Chỉ số dưới" onClick={() => editor?.chain().focus().toggleSubscript().run()} className={`hidden md:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('subscript') ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><SubscriptIcon className="w-4 h-4" /></button>
 
-                  <div className="hidden md:block w-px h-6 bg-slate-300 mx-1" />
+                  <div className="hidden md:block bg-slate-300 mx-1 w-px h-6" />
 
                   <button type="button" title="Highlight" onClick={() => editor?.chain().focus().toggleHighlight({ color: '#fef08a' }).run()} className={`hidden sm:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('highlight') ? 'bg-yellow-100 text-yellow-700' : 'text-slate-600'}`}><Highlighter className="w-4 h-4" /></button>
-                  <div className="hidden sm:block relative group">
-                    <button type="button" title="Màu chữ" className="p-1.5 hover:bg-slate-200 rounded transition-colors text-slate-600 flex items-center gap-0.5"><Palette className="w-4 h-4" /></button>
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl p-2 hidden group-hover:grid grid-cols-6 gap-1 z-50 w-[160px]">
-                      {['#000000','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#6b7280','#dc2626','#ea580c','#ca8a04','#16a34a','#2563eb','#7c3aed','#db2777','#9ca3af','#991b1b'].map(color => (
-                        <button key={color} type="button" onClick={() => editor?.chain().focus().setColor(color).run()} className="w-5 h-5 rounded border border-slate-200 hover:scale-125 transition-transform" style={{ backgroundColor: color }} />
-                      ))}
-                      <button type="button" onClick={() => editor?.chain().focus().unsetColor().run()} className="col-span-6 text-xs text-slate-500 hover:text-slate-700 mt-1">Xóa màu</button>
-                    </div>
+                  <div ref={colorPickerRef} className="hidden sm:block relative">
+                    <button
+                      type="button"
+                      title="Màu chữ"
+                      onClick={() => setColorPickerOpen((o) => !o)}
+                      className={`flex items-center gap-0.5 hover:bg-slate-200 p-1.5 rounded text-slate-600 transition-colors ${colorPickerOpen ? "bg-slate-200" : ""}`}
+                    >
+                      <Palette className="w-4 h-4" />
+                    </button>
+                    {colorPickerOpen && (
+                      <div className="top-full left-0 z-50 absolute gap-1 grid grid-cols-6 bg-white shadow-xl mt-1 p-2 border border-slate-200 rounded-lg w-[160px]">
+                        {['#000000','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#6b7280','#dc2626','#ea580c','#ca8a04','#16a34a','#2563eb','#7c3aed','#db2777','#9ca3af','#991b1b'].map(color => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => {
+                              editor?.chain().focus().setColor(color).run();
+                              setColorPickerOpen(false);
+                            }}
+                            className="border border-slate-200 rounded w-5 h-5 hover:scale-125 transition-transform"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            editor?.chain().focus().unsetColor().run();
+                            setColorPickerOpen(false);
+                          }}
+                          className="col-span-6 mt-1 text-slate-500 hover:text-slate-700 text-xs"
+                        >
+                          Xóa màu
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="hidden sm:block w-px h-6 bg-slate-300 mx-1" />
+                  <div className="hidden sm:block bg-slate-300 mx-1 w-px h-6" />
 
                   <button type="button" title="Căn trái" onClick={() => editor?.chain().focus().setTextAlign('left').run()} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive({ textAlign: 'left' }) ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><AlignLeft className="w-4 h-4" /></button>
                   <button type="button" title="Căn giữa" onClick={() => editor?.chain().focus().setTextAlign('center').run()} className={`hidden sm:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive({ textAlign: 'center' }) ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><AlignCenter className="w-4 h-4" /></button>
                   <button type="button" title="Căn phải" onClick={() => editor?.chain().focus().setTextAlign('right').run()} className={`hidden sm:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive({ textAlign: 'right' }) ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><AlignRight className="w-4 h-4" /></button>
                   <button type="button" title="Căn đều" onClick={() => editor?.chain().focus().setTextAlign('justify').run()} className={`hidden sm:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive({ textAlign: 'justify' }) ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><AlignJustify className="w-4 h-4" /></button>
 
-                  <div className="hidden sm:block w-px h-6 bg-slate-300 mx-1" />
+                  <div className="hidden sm:block bg-slate-300 mx-1 w-px h-6" />
 
                   <button type="button" title="Danh sách" onClick={() => editor?.chain().focus().toggleBulletList().run()} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('bulletList') ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><List className="w-4 h-4" /></button>
                   <button type="button" title="Danh sách số" onClick={() => editor?.chain().focus().toggleOrderedList().run()} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('orderedList') ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><ListOrdered className="w-4 h-4" /></button>
 
-                  <div className="w-px h-6 bg-slate-300 mx-1" />
+                  <div className="bg-slate-300 mx-1 w-px h-6" />
 
                   <button type="button" title="Trích dẫn" onClick={() => editor?.chain().focus().toggleBlockquote().run()} className={`hidden md:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('blockquote') ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><Quote className="w-4 h-4" /></button>
                   <button type="button" title="Code" onClick={() => editor?.chain().focus().toggleCode().run()} className={`hidden md:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('code') ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><Code className="w-4 h-4" /></button>
                   <button type="button" title="Code Block" onClick={() => editor?.chain().focus().toggleCodeBlock().run()} className={`hidden md:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('codeBlock') ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><Code2 className="w-4 h-4" /></button>
-                  <button type="button" title="Đường kẻ ngang" onClick={() => editor?.chain().focus().setHorizontalRule().run()} className="hidden md:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors text-slate-600"><Minus className="w-4 h-4" /></button>
+                  <button type="button" title="Đường kẻ ngang" onClick={() => editor?.chain().focus().setHorizontalRule().run()} className="hidden md:inline-flex hover:bg-slate-200 p-1.5 rounded text-slate-600 transition-colors"><Minus className="w-4 h-4" /></button>
 
-                  <div className="hidden md:block w-px h-6 bg-slate-300 mx-1" />
+                  <div className="hidden md:block bg-slate-300 mx-1 w-px h-6" />
 
                   <button type="button" title="Thêm liên kết" onClick={setLink} className={`p-1.5 hover:bg-slate-200 rounded transition-colors ${editor?.isActive('link') ? 'bg-blue-100 text-blue-700' : 'text-slate-600'}`}><LinkIcon className="w-4 h-4" /></button>
                   {editor?.isActive('link') && (
-                    <button type="button" title="Bỏ liên kết" onClick={() => editor?.chain().focus().unsetLink().run()} className="p-1.5 hover:bg-slate-200 rounded transition-colors text-red-500"><Unlink className="w-4 h-4" /></button>
+                    <button type="button" title="Bỏ liên kết" onClick={() => editor?.chain().focus().unsetLink().run()} className="hover:bg-slate-200 p-1.5 rounded text-red-500 transition-colors"><Unlink className="w-4 h-4" /></button>
                   )}
 
-                  <div className="w-px h-6 bg-slate-300 mx-1" />
+                  <div className="bg-slate-300 mx-1 w-px h-6" />
 
                   <button type="button" title="Xóa định dạng" onClick={() => editor?.chain().focus().clearNodes().unsetAllMarks().run()} className={`hidden md:inline-flex p-1.5 hover:bg-slate-200 rounded transition-colors text-slate-600`}><RemoveFormatting className="w-4 h-4" /></button>
                 </div>
                 {/* Editor Input Area */}
-                <div className="px-4 py-3 min-h-[260px] focus:outline-none text-slate-900">
+                <div className="px-4 py-3 focus:outline-none min-h-[260px] text-slate-900">
                   <EditorContent editor={editor} />
                 </div>
               </div>
@@ -605,10 +814,10 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           </div>
 
           {/* Right Column: Image Selection (1/3) */}
-          <div className="lg:col-span-1 space-y-4">
+          <div className="space-y-4 lg:col-span-1">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Hình ảnh sản phẩm <RequiredMark /></label>
-              <div className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center transition-colors cursor-pointer bg-slate-50 h-[200px] flex flex-col items-center justify-center relative">
+              <label className="block mb-1 font-semibold text-slate-700 text-sm">Hình ảnh sản phẩm <RequiredMark /></label>
+              <div className="relative flex flex-col justify-center items-center bg-slate-50 p-6 border-2 border-slate-300 hover:border-blue-500 border-dashed rounded-2xl h-[200px] text-center transition-colors cursor-pointer">
                 <input
                   type="file"
                   multiple
@@ -617,22 +826,22 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                   className="absolute inset-0 opacity-0 cursor-pointer"
                   id="inline-product-file-upload"
                 />
-                <label htmlFor="inline-product-file-upload" className="w-full h-full flex flex-col items-center justify-center pointer-events-none">
-                  <svg className="w-10 h-10 text-slate-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <label htmlFor="inline-product-file-upload" className="flex flex-col justify-center items-center w-full h-full pointer-events-none">
+                  <svg className="mb-3 w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
-                  <span className="text-sm text-slate-600 font-semibold">Click để chọn nhiều ảnh</span>
-                  <span className="text-xs text-slate-400 mt-1">Ảnh định dạng .png, .jpg, .webp</span>
+                  <span className="font-semibold text-slate-600 text-sm">Click để chọn nhiều ảnh</span>
+                  <span className="mt-1 text-slate-400 text-xs">Ảnh định dạng .png, .jpg, .webp</span>
                 </label>
               </div>
 
               {/* Selected Images Grid */}
               {imagePreviews.length > 0 && (
                 <div className="space-y-2 mt-4">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Danh sách ảnh ({imagePreviews.length})</label>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
+                  <label className="block font-bold text-slate-500 text-xs uppercase tracking-wider">Danh sách ảnh ({imagePreviews.length})</label>
+                  <div className="gap-2 sm:gap-3 grid grid-cols-3 sm:grid-cols-4">
                     {imagePreviews.map((src, idx) => (
-                      <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 shadow-xs group bg-slate-50">
+                      <div key={idx} className="group relative bg-slate-50 shadow-xs border border-slate-100 rounded-xl aspect-square overflow-hidden">
                         <button
                           type="button"
                           onClick={() => setImagePreviewModal({ src, title: `Ảnh sản phẩm ${idx + 1}` })}
@@ -643,7 +852,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                         <button
                           type="button"
                           onClick={() => removeImage(idx)}
-                          className="absolute top-1.5 right-1.5 w-8 h-8 rounded-full bg-red-500/90 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          className="top-1.5 right-1.5 absolute flex justify-center items-center bg-red-500/90 opacity-0 group-hover:opacity-100 rounded-full w-8 h-8 text-white transition-opacity"
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>
@@ -659,11 +868,11 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
       </form>
 
       {/* Footer actions */}
-      <div className="p-6 border-t border-slate-100 flex gap-3 bg-slate-50/50">
+      <div className="flex gap-3 bg-slate-50/50 p-6 border-slate-100 border-t">
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 py-3 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-100 transition-colors text-sm"
+          className="flex-1 hover:bg-slate-100 py-3 border border-slate-200 rounded-xl font-semibold text-slate-700 text-sm transition-colors"
         >
           Huỷ
         </button>
@@ -671,7 +880,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           type="button"
           onClick={handleSave}
           disabled={isSaving}
-          className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-200/50 flex items-center justify-center gap-2 text-sm"
+          className="flex flex-1 justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 shadow-blue-200/50 shadow-lg py-3 rounded-xl font-bold text-white text-sm transition-all"
         >
           {isSaving ? (
             <>

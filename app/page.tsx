@@ -69,7 +69,7 @@ const FEATURE_THEMES: Record<string, string> = {
 export default async function Home() {
   const supabase = createServerClient();
   const [productsRes, categoriesRes, featuresRes, testimonialsRes, galleryRes] = await Promise.all([
-    supabase.from("products").select("*").eq("is_published", true).limit(4),
+    supabase.from("products").select("*").eq("is_published", true).order("created_at", { ascending: false }),
     supabase
       .from("categories")
       .select("id, name, slug, image_url, description, display_order")
@@ -197,21 +197,28 @@ export default async function Home() {
 
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 -mt-12 sm:-mt-20 pb-16 flex flex-col gap-10 sm:gap-16">
 
-        {/* 2. Sản phẩm nổi bật */}
+        {/* 2. Tất cả sản phẩm */}
         <section>
-          <div className="flex items-center justify-between mb-4 sm:mb-6">
-            <h2 className="text-lg sm:text-2xl font-bold text-white drop-shadow-md">Sản phẩm nổi bật</h2>
+          <div className="flex items-center justify-between mb-4 sm:mb-6 gap-3">
+            <h2 className="text-lg sm:text-2xl font-bold text-white drop-shadow-md">
+              Tất cả sản phẩm
+              {products.length > 0 && (
+                <span className="ml-2 text-sm sm:text-base font-medium text-white/80 drop-shadow-md">
+                  ({products.length})
+                </span>
+              )}
+            </h2>
             <Link href="/san-pham" className="text-white text-sm font-medium hover:underline flex items-center drop-shadow-md shrink-0">
-              Xem tất cả <ChevronRight className="w-4 h-4" />
+              Lọc & sắp xếp <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
 
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] md:grid-cols-4 gap-3 sm:gap-6">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5">
             {products.map((product: { id: string; name: string; price: string | number | null; image_url?: string; slug?: string; original_price?: string | number | null; rating?: number; sold?: number }) => (
               <HomeProductCard key={product.id} product={product} />
             ))}
             {products.length === 0 && (
-              <div className="col-span-2 md:col-span-4">
+              <div className="col-span-full">
                 <div className="relative overflow-hidden rounded-3xl bg-white/95 backdrop-blur-sm border border-white/60 shadow-xl px-6 py-14 flex flex-col items-center text-center">
                   {/* Decorative blobs */}
                   <div className="absolute -top-10 -left-10 w-56 h-56 bg-blue-100 rounded-full blur-3xl pointer-events-none opacity-70" />

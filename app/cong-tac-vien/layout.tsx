@@ -5,8 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { LayoutDashboard, ShoppingBag, Coins, Banknote, Plus, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
+import { signOut } from "next-auth/react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { supabase } from "@/lib/supabase";
 
 const tabs = [
   { id: "tong-quan", label: "Tổng quan", icon: LayoutDashboard, href: "/cong-tac-vien/tong-quan" },
@@ -35,7 +35,7 @@ export default function CTVDashboardLayout({ children }: { children: React.React
   }, [isLoading, user, profile, isCollaborator, router]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut({ redirect: false });
     router.push("/");
   };
 

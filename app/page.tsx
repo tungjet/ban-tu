@@ -17,7 +17,11 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import type { ComponentType } from "react";
-import { createServerClient } from "@/lib/supabase";
+import { connectDB } from "@/lib/db";
+import { Product } from "@/lib/models/Product";
+import { Category } from "@/lib/models/Category";
+import { Testimonial } from "@/lib/models/Testimonial";
+import { HomepageFeature } from "@/lib/models/HomepageFeature";
 import { Gallery, type GalleryItem } from "@/components/Gallery";
 import { HomeProductCard } from "@/components/HomeProductCard";
 
@@ -67,76 +71,93 @@ const FEATURE_THEMES: Record<string, string> = {
 };
 
 export default async function Home() {
-  const supabase = createServerClient();
-  const [productsRes, categoriesRes, featuresRes, testimonialsRes, galleryRes] = await Promise.all([
-    supabase.from("products").select("*").eq("is_published", true).order("created_at", { ascending: false }),
-    supabase
-      .from("categories")
-      .select("id, name, slug, image_url, description, display_order")
-      .order("display_order", { ascending: true })
-      .limit(8),
-    supabase
-      .from("homepage_features")
-      .select("*")
-      .eq("is_published", true)
-      .order("display_order", { ascending: true }),
-    supabase
-      .from("testimonials")
-      .select("*")
-      .eq("is_published", true)
-      .order("display_order", { ascending: true })
-      .limit(6),
-    // Gallery: lấy tất cả sản phẩm có ảnh, mỗi ảnh thành 1 item
-    supabase
-      .from("products")
-      .select("id, name, slug, price, original_price, image_url, images, description")
-      .eq("is_published", true)
-      .order("created_at", { ascending: false })
-      .limit(20),
+  await connectDB();
+  const [productsRaw, categoriesRaw, featuresRaw, testimonialsRaw, galleryProductsRaw] = await Promise.all([
+    Product.find({ isPublished: true }).sort({ createdAt: -1 }).lean(),
+    Category.find().sort({ displayOrder: 1 }).limit(8).lean(),
+    HomepageFeature.find({ isPublished: true }).sort({ displayOrder: 1 }).lean(),
+    Testimonial.find({ isPublished: true }).sort({ displayOrder: 1 }).limit(6).lean(),
+    Product.find({ isPublished: true })
+      .select("name slug price originalPrice imageUrl images description")
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean(),
   ]);
 
-  const products = productsRes.data || [];
-  const categories = categoriesRes.data || [];
-  const features = featuresRes.data || [];
-  const testimonials = testimonialsRes.data || [];
-
-  // Bung từng ảnh của mỗi sản phẩm thành 1 gallery item
   type ProductForGallery = {
-    id: string;
+    _id: { toString(): string };
     name: string;
     slug?: string | null;
     price: number | string | null;
-    original_price?: number | string | null;
-    image_url?: string | null;
+    originalPrice?: number | string | null;
+    imageUrl?: string | null;
     images?: string[] | null;
     description?: string | null;
   };
   const galleryItems: GalleryItem[] = [];
-  for (const p of (galleryRes.data || []) as ProductForGallery[]) {
+  for (const p of (galleryProductsRaw as unknown as ProductForGallery[])) {
     const productImages = (p.images && p.images.length > 0)
       ? p.images
-      : p.image_url
-        ? [p.image_url]
+      : p.imageUrl
+        ? [p.imageUrl]
         : [];
     productImages.forEach((img, idx) => {
       galleryItems.push({
-        id: `${p.id}-${idx}`,
+        id: `${p._id.toString()}-${idx}`,
         image_url: img,
         title: p.name,
         description: (p.description || "").replace(/<[^>]*>/g, "").slice(0, 140),
         product: {
-          id: p.id,
+          id: p._id.toString(),
           name: p.name,
           slug: p.slug ?? null,
           price: p.price ?? null,
-          original_price: p.original_price ? Number(p.original_price) : null,
-          image_url: p.image_url ?? null,
+          original_price: p.originalPrice ? Number(p.originalPrice) : null,
+          image_url: p.imageUrl ?? null,
         },
       });
     });
   }
-  // Giới hạn 16 ảnh trên trang chủ để không quá nặng
   const galleryDisplay = galleryItems.slice(0, 16);
+
+  type ProductLean = { _id: { toString(): string }; name: string; price: number | string | null; imageUrl?: string | null; slug?: string | null; originalPrice?: number | string | null; rating?: number; sold?: number };
+  const products = (productsRaw as unknown as ProductLean[]).map((p) => ({
+    id: p._id.toString(),
+    name: p.name,
+    price: p.price ?? null,
+    image_url: p.imageUrl ?? null,
+    slug: p.slug ?? null,
+    original_price: p.originalPrice ?? null,
+    rating: p.rating ?? 5,
+    sold: p.sold ?? 0,
+  }));
+
+  type CategoryLean = { _id: { toString(): string }; name: string; slug: string; imageUrl?: string | null };
+  const categories = (categoriesRaw as unknown as CategoryLean[]).map((c) => ({
+    id: c._id.toString(),
+    name: c.name,
+    slug: c.slug,
+    image_url: c.imageUrl ?? null,
+  }));
+
+  type FeatureLean = { _id: { toString(): string }; icon?: string; title: string; description: string; colorTheme?: string };
+  const features = (featuresRaw as unknown as FeatureLean[]).map((f) => ({
+    id: f._id.toString(),
+    icon: f.icon,
+    title: f.title,
+    description: f.description,
+    color_theme: f.colorTheme,
+  }));
+
+  type TestimonialLean = { _id: { toString(): string }; customerName: string; initial?: string; productLabel?: string; rating?: number; content: string };
+  const testimonials = (testimonialsRaw as unknown as TestimonialLean[]).map((t) => ({
+    id: t._id.toString(),
+    customer_name: t.customerName,
+    initial: t.initial,
+    product_label: t.productLabel,
+    rating: t.rating ?? 5,
+    content: t.content,
+  }));
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -214,7 +235,7 @@ export default async function Home() {
           </div>
 
           <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5">
-            {products.map((product: { id: string; name: string; price: string | number | null; image_url?: string; slug?: string; original_price?: string | number | null; rating?: number; sold?: number }) => (
+            {products.map((product: { id: string; name: string; price: string | number | null; image_url: string | null; slug: string | null; original_price: string | number | null; rating: number; sold: number }) => (
               <HomeProductCard key={product.id} product={product} />
             ))}
             {products.length === 0 && (
@@ -260,7 +281,7 @@ export default async function Home() {
             </div>
 
             <div className="flex overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 gap-3 sm:gap-4 snap-x hide-scrollbar">
-              {categories.map((category: { id: string | number; name: string; slug?: string; image_url?: string }) => (
+              {categories.map((category: { id: string; name: string; slug: string; image_url: string | null }) => (
                 <Link
                   key={category.id}
                   href={`/san-pham?category=${category.slug || category.id}`}

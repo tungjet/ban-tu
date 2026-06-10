@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
-import { supabase } from "@/lib/supabase";
+import { useSession } from "next-auth/react";
 import { FormInput, FormTextarea, FormSelect } from "@/components/form";
 
 interface Product {
@@ -22,6 +22,7 @@ interface LineItem {
 }
 
 export default function CTVDashboardCreateOrderPage() {
+  const { status: sessionStatus } = useSession();
   const [products, setProducts] = useState<Product[]>([]);
   const [items, setItems] = useState<LineItem[]>([]);
   const [customerName, setCustomerName] = useState("");
@@ -32,8 +33,18 @@ export default function CTVDashboardCreateOrderPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    supabase.from("products").select("id, name, price, image_url").eq("is_published", true).order("name")
-      .then(({ data }) => setProducts(data || []));
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((data) => {
+        const list: Product[] = (data.products || []).map((p: any) => ({
+          id: p._id?.toString() || p.id,
+          name: p.name,
+          price: Number(p.price) || 0,
+          image_url: p.imageUrl ?? null,
+        }));
+        setProducts(list);
+      })
+      .catch(() => setProducts([]));
   }, []);
 
   const addItem = (p: Product) => {
@@ -58,13 +69,11 @@ export default function CTVDashboardCreateOrderPage() {
 
     setSubmitting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error("Phiên đăng nhập hết hạn");
+      if (sessionStatus !== "authenticated") throw new Error("Phiên đăng nhập hết hạn");
 
       const res = await fetch("/api/collaborator/orders/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customer_name: customerName, phone, email, address, note,
           items: items.map((i) => ({ id: i.product_id, name: i.name, price: i.price, quantity: i.quantity, image: i.image })),

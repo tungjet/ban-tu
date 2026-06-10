@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Check, X, Loader2, Banknote, Handshake } from "lucide-react";
 import toast from "react-hot-toast";
-import { supabase } from "@/lib/supabase";
 
 interface CollabRow {
   id: string;
@@ -36,24 +35,15 @@ export default function CollaboratorsTab() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const getToken = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
-  };
-
   const loadCollabs = async () => {
-    const token = await getToken();
-    if (!token) return;
-    const res = await fetch("/api/admin/collaborators", { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch("/api/admin/collaborators");
     if (!res.ok) return;
     const d = await res.json();
     setCollabs(d.collaborators || []);
   };
 
   const loadWithdrawals = async () => {
-    const token = await getToken();
-    if (!token) return;
-    const res = await fetch("/api/admin/withdrawals", { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch("/api/admin/withdrawals");
     if (!res.ok) return;
     const d = await res.json();
     setWithdrawals(d.withdrawals || []);
@@ -64,11 +54,9 @@ export default function CollaboratorsTab() {
   }, []);
 
   const updateColl = async (id: string, patch: Partial<CollabRow>) => {
-    const token = await getToken();
-    if (!token) return;
     const res = await fetch(`/api/admin/collaborators/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
     if (!res.ok) {
@@ -81,11 +69,9 @@ export default function CollaboratorsTab() {
   };
 
   const processWithdrawal = async (id: string, status: "approved" | "rejected" | "paid", note?: string) => {
-    const token = await getToken();
-    if (!token) return;
     const res = await fetch(`/api/admin/withdrawals/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status, admin_note: note }),
     });
     if (!res.ok) {

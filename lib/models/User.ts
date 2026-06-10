@@ -8,7 +8,7 @@ const userSchema = new Schema(
     phone: { type: String, default: null },
     role: { type: String, enum: ["admin", "collaborator", "customer"], default: "customer" },
     status: { type: String, enum: ["pending", "active", "banned"], default: "active" },
-    referralCode: { type: String, default: null, unique: true, sparse: true },
+    referralCode: { type: String, default: null, unique: true, partialFilterExpression: { referralCode: { $type: "string" } } },
     commissionBalance: { type: Number, default: 0 },
     bankName: { type: String, default: null },
     bankAccount: { type: String, default: null },

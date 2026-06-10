@@ -7,7 +7,10 @@ export async function POST(req: NextRequest) {
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { email, password, fullName, phone } = body;
+  const email = body.email;
+  const password = body.password;
+  const fullName = body.fullName || body.full_name;
+  const phone = body.phone;
   if (!email || !password || !fullName || !phone) return NextResponse.json({ error: "Thiếu thông tin" }, { status: 400 });
   if (password.length < 6) return NextResponse.json({ error: "Mật khẩu tối thiểu 6 ký tự" }, { status: 400 });
   if (!/^0\d{9,10}$/.test(phone)) return NextResponse.json({ error: "Số điện thoại không hợp lệ" }, { status: 400 });

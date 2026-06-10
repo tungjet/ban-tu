@@ -6,6 +6,7 @@ import Link from "next/link";
 import { UserPlus, Loader2, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { FormInput } from "@/components/form";
 
 export default function RegisterCTVPage() {
   const router = useRouter();
@@ -73,26 +74,11 @@ export default function RegisterCTVPage() {
           <p className="text-slate-500 text-sm mt-1">Trở thành cộng tác viên bán hàng, nhận hoa hồng hấp dẫn</p>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Họ tên *</label>
-          <input type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Số điện thoại *</label>
-          <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Email *</label>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu *</label>
-          <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Xác nhận mật khẩu *</label>
-          <input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-        </div>
+        <FormInput label="Họ tên" type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        <FormInput label="Số điện thoại" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <FormInput label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <FormInput label="Mật khẩu" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <FormInput label="Xác nhận mật khẩu" type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
 
         <button type="submit" disabled={submitting} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50">
           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}

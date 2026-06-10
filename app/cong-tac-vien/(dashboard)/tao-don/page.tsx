@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "@/lib/supabase";
+import { FormInput, FormTextarea, FormSelect } from "@/components/form";
 
 interface Product {
   id: string;
@@ -88,19 +89,19 @@ export default function CTVDashboardCreateOrderPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-3">
           <h2 className="font-bold text-slate-900">Thông tin khách</h2>
-          <input type="text" required placeholder="Họ tên *" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl" />
-          <input type="tel" required placeholder="Số điện thoại *" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl" />
-          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl" />
-          <textarea required placeholder="Địa chỉ *" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl" />
-          <textarea placeholder="Ghi chú" rows={2} value={note} onChange={(e) => setNote(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl" />
+          <FormInput label="Họ tên" type="text" required value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+          <FormInput label="Số điện thoại" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <FormInput label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <FormTextarea label="Địa chỉ" required rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
+          <FormTextarea label="Ghi chú" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-3">
           <h2 className="font-bold text-slate-900">Sản phẩm</h2>
-          <select onChange={(e) => { const p = products.find((x) => x.id === e.target.value); if (p) addItem(p); e.currentTarget.value = ""; }} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl" defaultValue="">
+          <FormSelect onChange={(e) => { const p = products.find((x) => x.id === e.target.value); if (p) addItem(p); e.currentTarget.value = ""; }} defaultValue="">
             <option value="" disabled>+ Thêm sản phẩm...</option>
             {products.map((p) => <option key={p.id} value={p.id}>{p.name} — {Number(p.price).toLocaleString("vi-VN")}đ</option>)}
-          </select>
+          </FormSelect>
 
           {items.length === 0 ? (
             <p className="text-slate-400 text-sm text-center py-6">Chưa có sản phẩm</p>

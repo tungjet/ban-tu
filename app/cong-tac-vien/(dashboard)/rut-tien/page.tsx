@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Banknote } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { FormInput } from "@/components/form";
 
 interface WithdrawalRow {
   id: string;
@@ -81,22 +82,10 @@ export default function CTVDashboardWithdrawPage() {
           <div className="text-sm text-slate-500">Số dư: <span className="font-bold text-blue-600">{Number(profile?.commission_balance ?? 0).toLocaleString("vi-VN")}đ</span></div>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Số tiền (VNĐ) *</label>
-            <input type="number" required min={1000} value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Tên ngân hàng *</label>
-            <input type="text" required value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="VD: Vietcombank" className="w-full px-4 py-2.5 border border-slate-200 rounded-xl" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Số tài khoản *</label>
-            <input type="text" required value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Chủ tài khoản *</label>
-            <input type="text" required value={bankHolder} onChange={(e) => setBankHolder(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl" />
-          </div>
+          <FormInput label="Số tiền (VNĐ)" type="number" required min={1000} value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <FormInput label="Tên ngân hàng" type="text" required value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="VD: Vietcombank" />
+          <FormInput label="Số tài khoản" type="text" required value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
+          <FormInput label="Chủ tài khoản" type="text" required value={bankHolder} onChange={(e) => setBankHolder(e.target.value)} />
           <button type="submit" disabled={submitting} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl flex items-center gap-2 disabled:opacity-50">
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Banknote className="w-4 h-4" />}
             Gửi yêu cầu

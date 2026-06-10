@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LogIn, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "@/lib/supabase";
+import { FormInput } from "@/components/form";
 
 export default function LoginCTVPage() {
   const router = useRouter();
@@ -55,14 +56,8 @@ export default function LoginCTVPage() {
           <h1 className="text-2xl font-bold text-slate-900">Đăng nhập CTV</h1>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu</label>
-          <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-        </div>
+        <FormInput label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <FormInput label="Mật khẩu" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
 
         <button type="submit" disabled={submitting} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50">
           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}

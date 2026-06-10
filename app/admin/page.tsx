@@ -33,12 +33,15 @@ import {
   Save,
   ShieldCheck,
   Loader2,
+  Handshake,
+  Banknote,
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
 import { ProductForm } from "@/components/ProductForm";
+import CollaboratorsTab from "@/components/admin/CollaboratorsTab";
 
 import { toast, Toaster } from 'react-hot-toast';
 
@@ -1523,6 +1526,7 @@ export default function AdminDashboard() {
                 { id: "homepage", icon: <Globe className="w-5 h-5" />, label: "Trang chủ" },
                 { id: "settings", icon: <Settings className="w-5 h-5" />, label: "Cài đặt" },
                 { id: "account", icon: <User className="w-5 h-5" />, label: "Tài khoản" },
+                { id: "collaborators", icon: <Handshake className="w-5 h-5" />, label: "Cộng tác viên" },
               ].map((item) => (
                 <button
                   key={item.id}
@@ -1593,6 +1597,7 @@ export default function AdminDashboard() {
                   {activeTab === 'homepage' && "Cấu hình trang chủ"}
                   {activeTab === 'settings' && "Cài đặt hệ thống"}
                   {activeTab === 'account' && "Cài đặt tài khoản"}
+                  {activeTab === 'collaborators' && "Quản lý cộng tác viên"}
                 </h1>
               </div>
 
@@ -3683,7 +3688,11 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {activeTab !== 'dashboard' && activeTab !== 'orders' && activeTab !== 'products' && activeTab !== 'categories' && activeTab !== 'customers' && activeTab !== 'comments' && activeTab !== 'settings' && activeTab !== 'reviews' && activeTab !== 'testimonials' && activeTab !== 'homepage' && activeTab !== 'account' && (
+              {activeTab === 'collaborators' && (
+                <CollaboratorsTab />
+              )}
+
+              {activeTab !== 'dashboard' && activeTab !== 'orders' && activeTab !== 'products' && activeTab !== 'categories' && activeTab !== 'customers' && activeTab !== 'comments' && activeTab !== 'settings' && activeTab !== 'reviews' && activeTab !== 'testimonials' && activeTab !== 'homepage' && activeTab !== 'account' && activeTab !== 'collaborators' && (
                 <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center">
                   <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Box className="w-8 h-8" />

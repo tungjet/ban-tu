@@ -43,7 +43,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
 import { ProductForm } from "@/components/ProductForm";
 import CollaboratorsTab from "@/components/admin/CollaboratorsTab";
-import { FormInput, FormSelect, FormTextarea, SearchInput } from "@/components/form";
+import { FormInput, FormSelect, FormTextarea, FormCheckbox, SearchInput } from "@/components/form";
 
 import { toast, Toaster } from 'react-hot-toast';
 
@@ -2769,28 +2769,22 @@ export default function AdminDashboard() {
                           setShowCategoryModal(false);
                         }} className="p-6 space-y-6">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-1">Tên danh mục *</label>
-                              <input 
-                                type="text" 
-                                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
-                                placeholder="Ví dụ: Tủ nhựa Ecoplast"
-                                value={newCategory.name}
-                                onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-1">Slug (Link) *</label>
-                              <input 
-                                type="text" 
-                                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
-                                placeholder="Ví dụ: tu-nhua-ecoplast"
-                                value={newCategory.slug}
-                                onChange={(e) => setNewCategory({...newCategory, slug: e.target.value})}
-                                required
-                              />
-                            </div>
+                            <FormInput
+                              label="Tên danh mục"
+                              required
+                              type="text"
+                              placeholder="Ví dụ: Tủ nhựa Ecoplast"
+                              value={newCategory.name}
+                              onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
+                            />
+                            <FormInput
+                              label="Slug (Link)"
+                              required
+                              type="text"
+                              placeholder="Ví dụ: tu-nhua-ecoplast"
+                              value={newCategory.slug}
+                              onChange={(e) => setNewCategory({...newCategory, slug: e.target.value})}
+                            />
                           </div>
 
                           <div>
@@ -3119,62 +3113,47 @@ export default function AdminDashboard() {
                   {showReviewForm && (
                     <form onSubmit={handleSaveReview} className="bg-slate-50 p-5 rounded-xl mb-6 border border-slate-200 space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Sản phẩm *</label>
-                          <select
-                            value={reviewForm.product_id}
-                            onChange={(e) => setReviewForm({ ...reviewForm, product_id: e.target.value })}
-                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                            required
-                          >
-                            <option value="">-- Chọn sản phẩm --</option>
-                            {products.map((p: any) => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Tên khách hàng</label>
-                          <input
-                            type="text"
-                            value={reviewForm.user_name}
-                            onChange={(e) => setReviewForm({ ...reviewForm, user_name: e.target.value })}
-                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                            placeholder="Để trống = Khách hàng ẩn danh"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Số sao (1–5) *</label>
-                          <input
-                            type="number"
-                            min={1}
-                            max={5}
-                            value={reviewForm.rating}
-                            onChange={(e) => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })}
-                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Phân loại (vd: Vân Gỗ Sồi)</label>
-                          <input
-                            type="text"
-                            value={reviewForm.variant_label}
-                            onChange={(e) => setReviewForm({ ...reviewForm, variant_label: e.target.value })}
-                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Nội dung đánh giá *</label>
-                        <textarea
-                          rows={3}
-                          value={reviewForm.content}
-                          onChange={(e) => setReviewForm({ ...reviewForm, content: e.target.value })}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
+                        <FormSelect
+                          label="Sản phẩm"
                           required
+                          value={reviewForm.product_id}
+                          onChange={(e) => setReviewForm({ ...reviewForm, product_id: e.target.value })}
+                        >
+                          <option value="">-- Chọn sản phẩm --</option>
+                          {products.map((p: any) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </FormSelect>
+                        <FormInput
+                          label="Tên khách hàng"
+                          type="text"
+                          value={reviewForm.user_name}
+                          onChange={(e) => setReviewForm({ ...reviewForm, user_name: e.target.value })}
+                          placeholder="Để trống = Khách hàng ẩn danh"
+                        />
+                        <FormInput
+                          label="Số sao (1–5)"
+                          required
+                          type="number"
+                          min={1}
+                          max={5}
+                          value={reviewForm.rating}
+                          onChange={(e) => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })}
+                        />
+                        <FormInput
+                          label="Phân loại (vd: Vân Gỗ Sồi)"
+                          type="text"
+                          value={reviewForm.variant_label}
+                          onChange={(e) => setReviewForm({ ...reviewForm, variant_label: e.target.value })}
                         />
                       </div>
+                      <FormTextarea
+                        label="Nội dung đánh giá"
+                        required
+                        rows={3}
+                        value={reviewForm.content}
+                        onChange={(e) => setReviewForm({ ...reviewForm, content: e.target.value })}
+                      />
                       <div className="flex justify-end gap-2">
                         <button type="button" onClick={resetReviewForm} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-100">Huỷ</button>
                         <button type="submit" className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Lưu đánh giá</button>
@@ -3224,80 +3203,58 @@ export default function AdminDashboard() {
                   <form onSubmit={handleSaveTestimonial} className="bg-slate-50 p-5 rounded-xl mb-6 border border-slate-200 space-y-4">
                     <h3 className="font-semibold text-slate-800">{editingTestimonial ? "Chỉnh sửa testimonial" : "Thêm testimonial mới"}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Tên khách hàng *</label>
-                        <input
-                          type="text"
-                          value={testimonialForm.customer_name}
-                          onChange={(e) => setTestimonialForm({ ...testimonialForm, customer_name: e.target.value })}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                          placeholder="Anh Hoàng"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Avatar chữ (1 ký tự)</label>
-                        <input
-                          type="text"
-                          maxLength={1}
-                          value={testimonialForm.initial}
-                          onChange={(e) => setTestimonialForm({ ...testimonialForm, initial: e.target.value.toUpperCase() })}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                          placeholder="H (tự lấy chữ đầu nếu để trống)"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Nhãn sản phẩm</label>
-                        <input
-                          type="text"
-                          value={testimonialForm.product_label}
-                          onChange={(e) => setTestimonialForm({ ...testimonialForm, product_label: e.target.value })}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                          placeholder="Mua Tủ quần áo Ecoplast"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Số sao (1–5)</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={5}
-                          value={testimonialForm.rating}
-                          onChange={(e) => setTestimonialForm({ ...testimonialForm, rating: Number(e.target.value) })}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Thứ tự hiển thị</label>
-                        <input
-                          type="number"
-                          value={testimonialForm.display_order}
-                          onChange={(e) => setTestimonialForm({ ...testimonialForm, display_order: Number(e.target.value) })}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <label className="flex items-center gap-2 text-sm text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={testimonialForm.is_published}
-                            onChange={(e) => setTestimonialForm({ ...testimonialForm, is_published: e.target.checked })}
-                            className="w-4 h-4 rounded border-slate-300"
-                          />
-                          Hiển thị công khai
-                        </label>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Nội dung *</label>
-                      <textarea
-                        rows={3}
-                        value={testimonialForm.content}
-                        onChange={(e) => setTestimonialForm({ ...testimonialForm, content: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
+                      <FormInput
+                        label="Tên khách hàng"
                         required
+                        type="text"
+                        value={testimonialForm.customer_name}
+                        onChange={(e) => setTestimonialForm({ ...testimonialForm, customer_name: e.target.value })}
+                        placeholder="Anh Hoàng"
                       />
+                      <FormInput
+                        label="Avatar chữ (1 ký tự)"
+                        type="text"
+                        maxLength={1}
+                        value={testimonialForm.initial}
+                        onChange={(e) => setTestimonialForm({ ...testimonialForm, initial: e.target.value.toUpperCase() })}
+                        placeholder="H (tự lấy chữ đầu nếu để trống)"
+                      />
+                      <FormInput
+                        label="Nhãn sản phẩm"
+                        type="text"
+                        value={testimonialForm.product_label}
+                        onChange={(e) => setTestimonialForm({ ...testimonialForm, product_label: e.target.value })}
+                        placeholder="Mua Tủ quần áo Ecoplast"
+                      />
+                      <FormInput
+                        label="Số sao (1–5)"
+                        type="number"
+                        min={1}
+                        max={5}
+                        value={testimonialForm.rating}
+                        onChange={(e) => setTestimonialForm({ ...testimonialForm, rating: Number(e.target.value) })}
+                      />
+                      <FormInput
+                        label="Thứ tự hiển thị"
+                        type="number"
+                        value={testimonialForm.display_order}
+                        onChange={(e) => setTestimonialForm({ ...testimonialForm, display_order: Number(e.target.value) })}
+                      />
+                      <div className="flex items-end">
+                        <FormCheckbox
+                          label="Hiển thị công khai"
+                          checked={testimonialForm.is_published}
+                          onChange={(e) => setTestimonialForm({ ...testimonialForm, is_published: e.target.checked })}
+                        />
+                      </div>
                     </div>
+                    <FormTextarea
+                      label="Nội dung"
+                      required
+                      rows={3}
+                      value={testimonialForm.content}
+                      onChange={(e) => setTestimonialForm({ ...testimonialForm, content: e.target.value })}
+                    />
                     <div className="flex justify-end gap-2">
                       {editingTestimonial && (
                         <button type="button" onClick={resetTestimonialForm} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-100">Huỷ</button>
@@ -3360,82 +3317,63 @@ export default function AdminDashboard() {
                   <form onSubmit={handleSaveFeature} className="bg-slate-50 p-5 rounded-xl mb-6 border border-slate-200 space-y-4">
                     <h3 className="font-semibold text-slate-800">{editingFeature ? "Chỉnh sửa ưu điểm" : "Thêm ưu điểm mới"}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Tiêu đề *</label>
-                        <input
-                          type="text"
-                          value={featureForm.title}
-                          onChange={(e) => setFeatureForm({ ...featureForm, title: e.target.value })}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                          placeholder="Chống nước 100%"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Icon</label>
-                        <select
-                          value={featureForm.icon}
-                          onChange={(e) => setFeatureForm({ ...featureForm, icon: e.target.value })}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                        >
-                          <option value="droplets">droplets - Giọt nước</option>
-                          <option value="bug-off">bug-off - Diệt côn trùng</option>
-                          <option value="shield-check">shield-check - Khiên</option>
-                          <option value="sparkles">sparkles - Lấp lánh</option>
-                          <option value="wind">wind - Gió</option>
-                          <option value="leaf">leaf - Lá</option>
-                          <option value="award">award - Giải thưởng</option>
-                          <option value="heart">heart - Tim</option>
-                          <option value="truck">truck - Xe tải</option>
-                          <option value="hard-hat">hard-hat - Mũ bảo hộ</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Màu chủ đạo</label>
-                        <select
-                          value={featureForm.color_theme}
-                          onChange={(e) => setFeatureForm({ ...featureForm, color_theme: e.target.value })}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                        >
-                          <option value="blue">Xanh dương</option>
-                          <option value="orange">Cam</option>
-                          <option value="green">Xanh lá</option>
-                          <option value="red">Đỏ</option>
-                          <option value="amber">Vàng</option>
-                          <option value="purple">Tím</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Thứ tự hiển thị</label>
-                        <input
-                          type="number"
-                          value={featureForm.display_order}
-                          onChange={(e) => setFeatureForm({ ...featureForm, display_order: Number(e.target.value) })}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
-                        />
-                      </div>
-                      <div className="md:col-span-2 flex items-end">
-                        <label className="flex items-center gap-2 text-sm text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={featureForm.is_published}
-                            onChange={(e) => setFeatureForm({ ...featureForm, is_published: e.target.checked })}
-                            className="w-4 h-4 rounded border-slate-300"
-                          />
-                          Hiển thị công khai
-                        </label>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Mô tả *</label>
-                      <textarea
-                        rows={3}
-                        value={featureForm.description}
-                        onChange={(e) => setFeatureForm({ ...featureForm, description: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 text-slate-900"
+                      <FormInput
+                        label="Tiêu đề"
                         required
+                        type="text"
+                        value={featureForm.title}
+                        onChange={(e) => setFeatureForm({ ...featureForm, title: e.target.value })}
+                        placeholder="Chống nước 100%"
                       />
+                      <FormSelect
+                        label="Icon"
+                        value={featureForm.icon}
+                        onChange={(e) => setFeatureForm({ ...featureForm, icon: e.target.value })}
+                      >
+                        <option value="droplets">droplets - Giọt nước</option>
+                        <option value="bug-off">bug-off - Diệt côn trùng</option>
+                        <option value="shield-check">shield-check - Khiên</option>
+                        <option value="sparkles">sparkles - Lấp lánh</option>
+                        <option value="wind">wind - Gió</option>
+                        <option value="leaf">leaf - Lá</option>
+                        <option value="award">award - Giải thưởng</option>
+                        <option value="heart">heart - Tim</option>
+                        <option value="truck">truck - Xe tải</option>
+                        <option value="hard-hat">hard-hat - Mũ bảo hộ</option>
+                      </FormSelect>
+                      <FormSelect
+                        label="Màu chủ đạo"
+                        value={featureForm.color_theme}
+                        onChange={(e) => setFeatureForm({ ...featureForm, color_theme: e.target.value })}
+                      >
+                        <option value="blue">Xanh dương</option>
+                        <option value="orange">Cam</option>
+                        <option value="green">Xanh lá</option>
+                        <option value="red">Đỏ</option>
+                        <option value="amber">Vàng</option>
+                        <option value="purple">Tím</option>
+                      </FormSelect>
+                      <FormInput
+                        label="Thứ tự hiển thị"
+                        type="number"
+                        value={featureForm.display_order}
+                        onChange={(e) => setFeatureForm({ ...featureForm, display_order: Number(e.target.value) })}
+                      />
+                      <div className="md:col-span-2 flex items-end">
+                        <FormCheckbox
+                          label="Hiển thị công khai"
+                          checked={featureForm.is_published}
+                          onChange={(e) => setFeatureForm({ ...featureForm, is_published: e.target.checked })}
+                        />
+                      </div>
                     </div>
+                    <FormTextarea
+                      label="Mô tả"
+                      required
+                      rows={3}
+                      value={featureForm.description}
+                      onChange={(e) => setFeatureForm({ ...featureForm, description: e.target.value })}
+                    />
                     <div className="flex justify-end gap-2">
                       {editingFeature && (
                         <button type="button" onClick={resetFeatureForm} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-100">Huỷ</button>
@@ -3488,57 +3426,45 @@ export default function AdminDashboard() {
                     <div className="text-center py-8 text-slate-400">Đang tải cài đặt...</div>
                   ) : (
                     <div className="space-y-6 max-w-2xl">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Số điện thoại</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
-                          placeholder="Ví dụ: 0123456789"
-                          defaultValue={storeSettings.phone}
-                          onChange={(e) => setLocalSettings(prev => ({...prev, phone: e.target.value}))}
-                          key={`phone-${storeSettings.phone}`}
-                        />
-                      </div>
+                      <FormInput
+                        label="Số điện thoại"
+                        type="text"
+                        placeholder="Ví dụ: 0123456789"
+                        defaultValue={storeSettings.phone}
+                        onChange={(e) => setLocalSettings(prev => ({...prev, phone: e.target.value}))}
+                        key={`phone-${storeSettings.phone}`}
+                      />
 
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Số Zalo</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
-                          placeholder="Ví dụ: 0123456789"
-                          defaultValue={storeSettings.zalo}
-                          onChange={(e) => setLocalSettings(prev => ({...prev, zalo: e.target.value}))}
-                          key={`zalo-${storeSettings.zalo}`}
-                        />
-                      </div>
+                      <FormInput
+                        label="Số Zalo"
+                        type="text"
+                        placeholder="Ví dụ: 0123456789"
+                        defaultValue={storeSettings.zalo}
+                        onChange={(e) => setLocalSettings(prev => ({...prev, zalo: e.target.value}))}
+                        key={`zalo-${storeSettings.zalo}`}
+                      />
 
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Link Facebook</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
-                          placeholder="Ví dụ: https://facebook.com/trangcuaban"
-                          defaultValue={storeSettings.facebook}
-                          onChange={(e) => setLocalSettings(prev => ({...prev, facebook: e.target.value}))}
-                          key={`facebook-${storeSettings.facebook}`}
-                        />
-                      </div>
+                      <FormInput
+                        label="Link Facebook"
+                        type="text"
+                        placeholder="Ví dụ: https://facebook.com/trangcuaban"
+                        defaultValue={storeSettings.facebook}
+                        onChange={(e) => setLocalSettings(prev => ({...prev, facebook: e.target.value}))}
+                        key={`facebook-${storeSettings.facebook}`}
+                      />
 
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Địa chỉ cửa hàng</label>
-                        <textarea
-                          rows={3}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900 resize-none"
-                          placeholder="Ví dụ: 123 Đường ABC, Phường XYZ, Quận 1, TP.HCM"
-                          defaultValue={storeSettings.address}
-                          onChange={(e) => setLocalSettings(prev => ({...prev, address: e.target.value}))}
-                          key={`address-${storeSettings.address}`}
-                        />
-                      </div>
+                      <FormTextarea
+                        label="Địa chỉ cửa hàng"
+                        rows={3}
+                        placeholder="Ví dụ: 123 Đường ABC, Phường XYZ, Quận 1, TP.HCM"
+                        defaultValue={storeSettings.address}
+                        onChange={(e) => setLocalSettings(prev => ({...prev, address: e.target.value}))}
+                        key={`address-${storeSettings.address}`}
+                      />
 
                       <div className="pt-4 border-t border-slate-100">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Hoa hồng CTV mặc định (%)</label>
-                        <input
+                        <FormInput
+                          label="Hoa hồng CTV mặc định (%)"
                           type="number"
                           step="0.01"
                           min="0"
@@ -3546,7 +3472,6 @@ export default function AdminDashboard() {
                           defaultValue={storeSettings.default_commission_percent}
                           onChange={(e) => setLocalSettings(prev => ({...prev, default_commission_percent: Number(e.target.value)}))}
                           key={`commission-${storeSettings.default_commission_percent}`}
-                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
                         />
                         <p className="text-xs text-slate-500 mt-1">Áp dụng cho sản phẩm không có hoa hồng riêng.</p>
                       </div>
@@ -3656,15 +3581,12 @@ export default function AdminDashboard() {
                     </div>
                     <form onSubmit={handleSaveProfile} className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Tên hiển thị
-                        </label>
-                        <input
+                        <FormInput
+                          label="Tên hiển thị"
                           type="text"
                           value={displayName}
                           onChange={(e) => setDisplayName(e.target.value)}
                           placeholder="Nguyễn Văn A"
-                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
                         />
                         <p className="text-xs text-slate-500 mt-1">
                           Tên này hiển thị ở góc trang quản trị và khi phản hồi bình luận.
@@ -3705,40 +3627,22 @@ export default function AdminDashboard() {
                       <h3 className="font-bold text-slate-900 text-base">Đổi mật khẩu</h3>
                     </div>
                     <form onSubmit={handleChangePassword} className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Mật khẩu mới
-                        </label>
-                        <div className="relative">
-                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                            <Lock className="w-5 h-5" />
-                          </span>
-                          <input
-                            type="password"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            placeholder="Tối thiểu 6 ký tự"
-                            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Xác nhận mật khẩu mới
-                        </label>
-                        <div className="relative">
-                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                            <Lock className="w-5 h-5" />
-                          </span>
-                          <input
-                            type="password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            placeholder="Nhập lại mật khẩu"
-                            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
-                          />
-                        </div>
-                      </div>
+                      <FormInput
+                        label="Mật khẩu mới"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Tối thiểu 6 ký tự"
+                        leadingIcon={<Lock className="w-5 h-5" />}
+                      />
+                      <FormInput
+                        label="Xác nhận mật khẩu mới"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Nhập lại mật khẩu"
+                        leadingIcon={<Lock className="w-5 h-5" />}
+                      />
                       <div className="flex justify-end">
                         <button
                           type="submit"

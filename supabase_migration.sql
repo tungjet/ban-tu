@@ -453,3 +453,349 @@ CREATE TRIGGER trg_order_logs
 AFTER INSERT OR UPDATE OR DELETE ON orders
 FOR EACH ROW
 EXECUTE FUNCTION handle_order_logs();
+
+-- =====================================================
+-- COLLABORATOR / COMMISSION FEATURE
+-- =====================================================
+
+-- -----------------------------------------------------
+-- 1. TABLES
+-- -----------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name TEXT,
+  phone TEXT,
+  role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('admin','collaborator','customer')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('pending','active','banned')),
+  referral_code TEXT UNIQUE,
+  commission_balance NUMERIC(12,0) NOT NULL DEFAULT 0,
+  bank_name TEXT,
+  bank_account TEXT,
+  bank_holder TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);
+CREATE INDEX IF NOT EXISTS idx_profiles_status ON profiles(status);
+
+CREATE TABLE IF NOT EXISTS commissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  collaborator_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+  amount NUMERIC(12,0) NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('order_earned','withdrawal','adjustment','refund')),
+  note TEXT,
+  created_by UUID,
+  created_by_email TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_commissions_collaborator ON commissions(collaborator_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_commissions_order ON commissions(order_id);
+
+CREATE TABLE IF NOT EXISTS withdrawals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  collaborator_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  amount NUMERIC(12,0) NOT NULL CHECK (amount > 0),
+  bank_name TEXT NOT NULL,
+  bank_account TEXT NOT NULL,
+  bank_holder TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','paid')),
+  admin_note TEXT,
+  processed_by UUID,
+  processed_by_email TEXT,
+  processed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_collaborator ON withdrawals(collaborator_id, created_at DESC);
+
+-- -----------------------------------------------------
+-- 2. ALTER TABLE ADDITIONS
+-- -----------------------------------------------------
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS collaborator_id UUID REFERENCES profiles(id) ON DELETE SET NULL;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS collaborator_code TEXT;
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS commission_amount NUMERIC(12,0);
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS commission_status TEXT NOT NULL DEFAULT 'none'
+    CHECK (commission_status IN ('none','pending','earned','cancelled'));
+
+CREATE INDEX IF NOT EXISTS idx_orders_collaborator
+  ON orders(collaborator_id) WHERE collaborator_id IS NOT NULL;
+
+ALTER TABLE products
+  ADD COLUMN IF NOT EXISTS commission_percent NUMERIC(5,2);
+
+ALTER TABLE store_settings
+  ADD COLUMN IF NOT EXISTS default_commission_percent NUMERIC(5,2) NOT NULL DEFAULT 5.00;
+
+-- -----------------------------------------------------
+-- 3. TRIGGER FUNCTIONS
+-- -----------------------------------------------------
+
+-- 3.1 Generate a unique 6-char referral code
+CREATE OR REPLACE FUNCTION generate_unique_referral_code()
+RETURNS TEXT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_chars TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  v_code TEXT;
+  v_attempts INT := 0;
+BEGIN
+  LOOP
+    v_attempts := v_attempts + 1;
+    v_code := '';
+    FOR i IN 1..6 LOOP
+      v_code := v_code || substr(v_chars, 1 + floor(random() * length(v_chars))::int, 1);
+    END LOOP;
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM profiles WHERE referral_code = v_code);
+    IF v_attempts >= 10 THEN
+      RAISE EXCEPTION 'Could not generate unique referral code after 10 attempts';
+    END IF;
+  END LOOP;
+  RETURN v_code;
+END;
+$$;
+
+-- 3.2 BEFORE UPDATE on profiles: assign referral code
+CREATE OR REPLACE FUNCTION trg_generate_referral_code()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.role = 'collaborator' AND NEW.status = 'active' AND NEW.referral_code IS NULL THEN
+    NEW.referral_code := generate_unique_referral_code();
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_generate_referral ON profiles;
+CREATE TRIGGER profiles_generate_referral
+BEFORE UPDATE ON profiles
+FOR EACH ROW
+EXECUTE FUNCTION trg_generate_referral_code();
+
+-- 3.3 Apply commission on order status change
+CREATE OR REPLACE FUNCTION apply_order_commission()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_default_pct NUMERIC(5,2);
+  v_total_commission NUMERIC(12,0) := 0;
+  v_item_pct NUMERIC(5,2);
+  v_item JSONB;
+  v_item_id TEXT;
+  v_item_price NUMERIC;
+  v_item_qty NUMERIC;
+  v_admin_email TEXT;
+  v_had_earned BOOLEAN;
+BEGIN
+  IF NEW.status = OLD.status OR NEW.collaborator_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT default_commission_percent
+    INTO v_default_pct
+    FROM store_settings
+   WHERE id = 'default';
+
+  IF v_default_pct IS NULL THEN
+    v_default_pct := 5.00;
+  END IF;
+
+  IF NEW.status = 'Đã hoàn thành' THEN
+    IF NEW.commission_status = 'earned' THEN
+      RETURN NEW;
+    END IF;
+
+    SELECT EXISTS (
+      SELECT 1 FROM commissions WHERE order_id = NEW.id AND type = 'order_earned'
+    ) INTO v_had_earned;
+
+    IF NEW.items IS NOT NULL AND jsonb_typeof(NEW.items) = 'array' THEN
+      FOR v_item IN SELECT * FROM jsonb_array_elements(NEW.items)
+      LOOP
+        v_item_id := v_item->>'id';
+        v_item_price := COALESCE((v_item->>'price')::numeric, 0);
+        v_item_qty := COALESCE((v_item->>'quantity')::numeric, 0);
+
+        SELECT commission_percent
+          INTO v_item_pct
+          FROM products
+         WHERE id::text = v_item_id;
+
+        IF v_item_pct IS NULL THEN
+          v_item_pct := v_default_pct;
+        END IF;
+
+        v_total_commission := v_total_commission
+          + ROUND(v_item_price * v_item_qty * v_item_pct / 100);
+      END LOOP;
+    END IF;
+
+    SELECT email INTO v_admin_email FROM auth.users WHERE id = auth.uid();
+
+    INSERT INTO commissions (
+      collaborator_id, order_id, amount, type, note, created_by, created_by_email
+    ) VALUES (
+      NEW.collaborator_id,
+      NEW.id,
+      v_total_commission,
+      'order_earned',
+      CASE WHEN v_had_earned THEN 'Tính lại sau khi admin chuyển trạng thái' ELSE NULL END,
+      auth.uid(),
+      v_admin_email
+    );
+
+    NEW.commission_amount := v_total_commission;
+    NEW.commission_status := 'earned';
+
+  ELSIF OLD.status = 'Đã hoàn thành' AND NEW.status <> 'Đã hoàn thành' THEN
+    IF NEW.commission_status = 'earned' AND NEW.commission_amount IS NOT NULL THEN
+      SELECT email INTO v_admin_email FROM auth.users WHERE id = auth.uid();
+
+      INSERT INTO commissions (
+        collaborator_id, order_id, amount, type, note, created_by, created_by_email
+      ) VALUES (
+        NEW.collaborator_id,
+        NEW.id,
+        -NEW.commission_amount,
+        'refund',
+        'Hoàn tác do admin chuyển trạng thái đơn',
+        auth.uid(),
+        v_admin_email
+      );
+
+      NEW.commission_status := 'cancelled';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS orders_apply_commission ON orders;
+CREATE TRIGGER orders_apply_commission
+BEFORE UPDATE ON orders
+FOR EACH ROW
+EXECUTE FUNCTION apply_order_commission();
+
+-- 3.4 Sync profile.commission_balance on commission insert
+CREATE OR REPLACE FUNCTION sync_profile_balance()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  UPDATE profiles
+     SET commission_balance = COALESCE((
+           SELECT SUM(amount) FROM commissions WHERE collaborator_id = NEW.collaborator_id
+         ), 0),
+         updated_at = now()
+   WHERE id = NEW.collaborator_id;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS commissions_sync_balance ON commissions;
+CREATE TRIGGER commissions_sync_balance
+AFTER INSERT ON commissions
+FOR EACH ROW
+EXECUTE FUNCTION sync_profile_balance();
+
+-- 3.5 Auto-update profiles.updated_at
+CREATE OR REPLACE FUNCTION trg_profiles_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_updated_at ON profiles;
+CREATE TRIGGER profiles_updated_at
+BEFORE UPDATE ON profiles
+FOR EACH ROW
+EXECUTE FUNCTION trg_profiles_updated_at();
+
+-- -----------------------------------------------------
+-- 4. ROW LEVEL SECURITY
+-- -----------------------------------------------------
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE withdrawals ENABLE ROW LEVEL SECURITY;
+
+-- profiles policies
+DROP POLICY IF EXISTS profiles_self_read ON profiles;
+CREATE POLICY profiles_self_read ON profiles
+  FOR SELECT
+  USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS profiles_self_update ON profiles;
+CREATE POLICY profiles_self_update ON profiles
+  FOR UPDATE
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+DROP POLICY IF EXISTS profiles_admin_all ON profiles;
+CREATE POLICY profiles_admin_all ON profiles
+  FOR ALL
+  USING (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+
+DROP POLICY IF EXISTS profiles_public_referral_read ON profiles;
+CREATE POLICY profiles_public_referral_read ON profiles
+  FOR SELECT
+  USING (referral_code IS NOT NULL);
+
+-- commissions policies
+DROP POLICY IF EXISTS commissions_self_read ON commissions;
+CREATE POLICY commissions_self_read ON commissions
+  FOR SELECT
+  USING (auth.uid() = collaborator_id);
+
+DROP POLICY IF EXISTS commissions_admin_all ON commissions;
+CREATE POLICY commissions_admin_all ON commissions
+  FOR ALL
+  USING (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+
+-- withdrawals policies
+DROP POLICY IF EXISTS withdrawals_self_read ON withdrawals;
+CREATE POLICY withdrawals_self_read ON withdrawals
+  FOR SELECT
+  USING (auth.uid() = collaborator_id);
+
+DROP POLICY IF EXISTS withdrawals_self_insert ON withdrawals;
+CREATE POLICY withdrawals_self_insert ON withdrawals
+  FOR INSERT
+  WITH CHECK (auth.uid() = collaborator_id);
+
+DROP POLICY IF EXISTS withdrawals_admin_all ON withdrawals;
+CREATE POLICY withdrawals_admin_all ON withdrawals
+  FOR ALL
+  USING (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+
+-- -----------------------------------------------------
+-- 5. SEED
+-- -----------------------------------------------------
+
+INSERT INTO profiles (id, role, status)
+SELECT id, 'admin', 'active' FROM auth.users
+WHERE email = 'tungpham.it@gmail.com'
+ON CONFLICT (id) DO UPDATE SET role = 'admin', status = 'active';

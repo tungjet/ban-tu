@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyCollaborator } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { Order } from "@/lib/models/Order";
+import { requireCollaborator, isErrorResponse } from "@/lib/auth-helpers";
 
-export async function GET(request: NextRequest) {
-  const { user, error, supabase } = await verifyCollaborator(request);
-  if (error || !user || !supabase) {
-    return NextResponse.json({ error }, { status: 401 });
-  }
+export async function GET(req: NextRequest) {
+  const session = await requireCollaborator(req);
+  if (isErrorResponse(session)) return session;
 
-  const { data: orders, error: dbErr } = await supabase
-    .from("orders")
-    .select("id, order_code, customer_name, total_amount, status, commission_status, commission_amount, created_at")
-    .eq("collaborator_id", user.id)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });
-  return NextResponse.json({ orders: orders || [] });
+  await connectDB();
+  const items = await Order.find({
+    collaboratorId: session.id,
+    deletedAt: null,
+  })
+    .select("orderCode customerName totalAmount status commissionStatus commissionAmount createdAt")
+    .sort({ createdAt: -1 })
+    .lean();
+  return NextResponse.json({ orders: items });
 }

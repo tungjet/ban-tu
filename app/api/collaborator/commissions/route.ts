@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyCollaborator } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { Commission } from "@/lib/models/Commission";
+import { requireCollaborator, isErrorResponse } from "@/lib/auth-helpers";
 
-export async function GET(request: NextRequest) {
-  const { user, error, supabase } = await verifyCollaborator(request);
-  if (error || !user || !supabase) {
-    return NextResponse.json({ error }, { status: 401 });
-  }
+export async function GET(req: NextRequest) {
+  const session = await requireCollaborator(req);
+  if (isErrorResponse(session)) return session;
 
-  const { data, error: dbErr } = await supabase
-    .from("commissions")
-    .select("id, amount, type, note, order_id, created_at")
-    .eq("collaborator_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(200);
-
-  if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });
-  return NextResponse.json({ commissions: data || [] });
+  await connectDB();
+  const items = await Commission.find({ collaboratorId: session.id })
+    .select("amount type note orderId createdAt")
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .lean();
+  return NextResponse.json({ commissions: items });
 }

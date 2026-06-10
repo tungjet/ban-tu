@@ -1,31 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyCollaborator } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { Withdrawal } from "@/lib/models/Withdrawal";
+import { User } from "@/lib/models/User";
+import { requireCollaborator, isErrorResponse } from "@/lib/auth-helpers";
 
-export async function GET(request: NextRequest) {
-  const { user, error, supabase } = await verifyCollaborator(request);
-  if (error || !user || !supabase) {
-    return NextResponse.json({ error }, { status: 401 });
-  }
+export async function GET(req: NextRequest) {
+  const session = await requireCollaborator(req);
+  if (isErrorResponse(session)) return session;
 
-  const { data, error: dbErr } = await supabase
-    .from("withdrawals")
-    .select("*")
-    .eq("collaborator_id", user.id)
-    .order("created_at", { ascending: false });
-
-  if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });
-  return NextResponse.json({ withdrawals: data || [] });
+  await connectDB();
+  const items = await Withdrawal.find({ collaboratorId: session.id })
+    .sort({ createdAt: -1 })
+    .lean();
+  return NextResponse.json({ withdrawals: items });
 }
 
-export async function POST(request: NextRequest) {
-  const { user, error, supabase } = await verifyCollaborator(request);
-  if (error || !user || !supabase) {
-    return NextResponse.json({ error }, { status: 401 });
-  }
+export async function POST(req: NextRequest) {
+  const session = await requireCollaborator(req);
+  if (isErrorResponse(session)) return session;
 
   let body: any;
   try {
-    body = await request.json();
+    body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -42,25 +38,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Thiếu thông tin ngân hàng" }, { status: 400 });
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("commission_balance")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile || Number(profile.commission_balance) < amount) {
+  await connectDB();
+  const user = await User.findById(session.id).select("commissionBalance").lean();
+  if (!user || user.commissionBalance < amount) {
     return NextResponse.json({ error: "Số dư không đủ" }, { status: 400 });
   }
 
-  const { error: insErr } = await supabase.from("withdrawals").insert({
-    collaborator_id: user.id,
+  await Withdrawal.create({
+    collaboratorId: session.id,
     amount,
-    bank_name,
-    bank_account,
-    bank_holder,
+    bankName: bank_name,
+    bankAccount: bank_account,
+    bankHolder: bank_holder,
     status: "pending",
   });
-
-  if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

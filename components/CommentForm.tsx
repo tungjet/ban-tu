@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { FormInput, FormTextarea } from "@/components/form";
 
 export default function CommentForm({ productId }: { productId: string }) {
   const [name, setName] = useState("");
@@ -57,22 +58,23 @@ export default function CommentForm({ productId }: { productId: string }) {
     <div className="bg-slate-50 rounded-2xl p-6 mb-8">
       <h3 className="font-bold text-slate-900 mb-4">Bạn có câu hỏi về sản phẩm?</h3>
       <form onSubmit={handleSubmit}>
-        <input 
-          type="text" 
-          className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mb-3 text-slate-900 placeholder-slate-400"
+        <FormInput
+          containerClassName="mb-3"
+          className="p-3 text-sm"
           placeholder="Họ và tên (không bắt buộc)"
           value={name}
           onChange={handleNameChange}
         />
-        <textarea 
-          className="w-full p-4 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm mb-3 text-slate-900 placeholder-slate-500"
+        <FormTextarea
+          containerClassName="mb-3"
+          className="p-4 text-sm"
           rows={3}
           placeholder="Nhập câu hỏi của bạn tại đây..."
           value={content}
           onChange={(e) => setContent(e.target.value)}
           required
-        ></textarea>
-        <button 
+        />
+        <button
           type="submit"
           className="bg-slate-900 text-white font-medium py-2.5 px-6 rounded-xl hover:bg-slate-800 transition-colors text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={isSubmitting}

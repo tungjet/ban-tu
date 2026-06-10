@@ -19,10 +19,7 @@ import {
   Loader2,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
-
-function RequiredMark() {
-  return <span className="text-red-500">*</span>;
-}
+import { FormInput, FormTextarea } from "@/components/form";
 
 export default function CheckoutPage() {
   const { items, clearCart, updateQuantity, removeItem } = useCartStore();
@@ -354,64 +351,56 @@ export default function CheckoutPage() {
                 </div>
 
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Họ và tên <RequiredMark /></label>
-                    <input
-                      type="text"
-                      required
-                      value={form.customer_name}
-                      onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
-                      className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow placeholder-slate-500 text-slate-900"
-                      placeholder="Nguyễn Văn A"
-                    />
-                  </div>
+                  <FormInput
+                    label="Họ và tên"
+                    type="text"
+                    required
+                    value={form.customer_name}
+                    onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
+                    className="p-3"
+                    placeholder="Nguyễn Văn A"
+                  />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="min-w-0">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Số điện thoại <RequiredMark /></label>
-                      <input
-                        type="tel"
-                        required
-                        value={form.phone}
-                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                        className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow placeholder-slate-500 text-slate-900"
-                        placeholder="0912345678"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Email (không bắt buộc)</label>
-                      <input
-                        type="email"
-                        value={form.email}
-                        onChange={(e) => setForm({ ...form, email: e.target.value })}
-                        className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow placeholder-slate-500 text-slate-900"
-                        placeholder="a@gmail.com"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Địa chỉ nhận hàng <RequiredMark /></label>
-                    <input
-                      type="text"
+                    <FormInput
+                      containerClassName="min-w-0"
+                      label="Số điện thoại"
+                      type="tel"
                       required
-                      value={form.address}
-                      onChange={(e) => setForm({ ...form, address: e.target.value })}
-                      className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow placeholder-slate-500 text-slate-900"
-                      placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/TP"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      className="p-3"
+                      placeholder="0912345678"
+                    />
+                    <FormInput
+                      containerClassName="min-w-0"
+                      label="Email (không bắt buộc)"
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      className="p-3"
+                      placeholder="a@gmail.com"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Ghi chú (tuỳ chọn)</label>
-                    <textarea
-                      value={form.note}
-                      onChange={(e) => setForm({ ...form, note: e.target.value })}
-                      className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow resize-none placeholder-slate-500 text-slate-900"
-                      rows={3}
-                      placeholder="Thời gian giao hàng thuận tiện, yêu cầu đặc biệt..."
-                    />
-                  </div>
+                  <FormInput
+                    label="Địa chỉ nhận hàng"
+                    type="text"
+                    required
+                    value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    className="p-3"
+                    placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/TP"
+                  />
+
+                  <FormTextarea
+                    label="Ghi chú (tuỳ chọn)"
+                    value={form.note}
+                    onChange={(e) => setForm({ ...form, note: e.target.value })}
+                    className="p-3"
+                    rows={3}
+                    placeholder="Thời gian giao hàng thuận tiện, yêu cầu đặc biệt..."
+                  />
                 </div>
               </div>
 

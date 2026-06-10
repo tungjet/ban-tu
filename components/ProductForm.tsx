@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "react-hot-toast";
+import { FormInput, FormTextarea, FormSelect } from "@/components/form";
 
 // Tiptap imports
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -24,10 +25,6 @@ import TiptapLink from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
-
-function RequiredMark() {
-  return <span className="text-red-500">*</span>;
-}
 
 // Giới hạn độ dài slug: chuẩn SEO là ~75 ký tự, để an toàn đặt 80
 const SLUG_MAX_LENGTH = 80;
@@ -558,8 +555,8 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           {/* Left Column: Product Information (2/3) */}
           <div className="space-y-4 lg:col-span-2">
             <div>
-              <label className="block mb-1 font-semibold text-slate-700 text-sm">Tên sản phẩm <RequiredMark /></label>
-              <input
+              <FormInput
+                label="Tên sản phẩm"
                 type="text"
                 required
                 value={form.name}
@@ -576,23 +573,19 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                   });
                 }}
                 placeholder="Ví dụ: Tủ nhựa Ecoplast 4 cánh"
-                className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
               />
             </div>
 
             <div className="gap-4 grid grid-cols-1 sm:grid-cols-2">
+              <FormInput
+                label="Giá bán (VNĐ)"
+                type="text"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: formatPriceInput(e.target.value) })}
+                placeholder="Ví dụ: 3,500,000"
+              />
               <div>
-                <label className="block mb-1 font-semibold text-slate-700 text-sm">Giá bán (VNĐ)</label>
-                <input
-                  type="text"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: formatPriceInput(e.target.value) })}
-                  placeholder="Ví dụ: 3,500,000"
-                  className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
-                />
-              </div>
-              <div>
-                <label className="block mb-1 font-semibold text-slate-700 text-sm">Giá gốc (Tùy chọn)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Giá gốc (Tùy chọn)</label>
                 <div className="relative">
                   <input
                     type="text"
@@ -611,8 +604,8 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
             </div>
 
             <div>
-              <label className="block mb-1 font-semibold text-slate-700 text-sm">Hoa hồng CTV riêng (%)</label>
-              <input
+              <FormInput
+                label="Hoa hồng CTV riêng (%)"
                 type="number"
                 step="0.01"
                 min="0"
@@ -620,33 +613,29 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                 value={form.commission_percent}
                 onChange={(e) => setForm({ ...form, commission_percent: e.target.value })}
                 placeholder="Để trống = dùng mặc định"
-                className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
               />
               <p className="mt-1 text-xs text-slate-500">Nếu để trống, hệ thống sẽ dùng hoa hồng mặc định của cửa hàng.</p>
             </div>
 
             <div className="gap-4 grid grid-cols-1 sm:grid-cols-2">
-              <div>
-                <label className="block mb-1 font-semibold text-slate-700 text-sm">Danh mục <RequiredMark /></label>
-                <select
-                  required
-                  value={form.category_id}
-                  onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                  className="bg-white px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
-                >
-                  <option value="">-- Chọn danh mục --</option>
-                  {form.category_id && !selectedCategoryExists && (
-                    <option value={form.category_id}>
-                      Danh mục hiện tại ({form.category_id})
-                    </option>
-                  )}
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={String(cat.id)}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <FormSelect
+                label="Danh mục"
+                required
+                value={form.category_id}
+                onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+              >
+                <option value="">-- Chọn danh mục --</option>
+                {form.category_id && !selectedCategoryExists && (
+                  <option value={form.category_id}>
+                    Danh mục hiện tại ({form.category_id})
+                  </option>
+                )}
+                {categories.map((cat) => (
+                  <option key={cat.id} value={String(cat.id)}>
+                    {cat.name}
+                  </option>
+                ))}
+              </FormSelect>
 
               <div>
                 <label className="block mb-1 font-semibold text-slate-700 text-sm">
@@ -657,7 +646,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                   value={form.slug}
                   maxLength={SLUG_MAX_LENGTH}
                   onChange={(e) => {
-                    setSlugTouched(true); // user đã tự gõ -> dừng auto-generate
+                    setSlugTouched(true);
                     setForm({ ...form, slug: e.target.value });
                   }}
                   placeholder="Để trống sẽ tự tạo từ tên sản phẩm (vd: tu-nhua-ecoplast-4-canh)"
@@ -687,30 +676,24 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
             </div>
 
             <div className="gap-4 grid grid-cols-1 sm:grid-cols-2">
-              <div>
-                <label className="block mb-1 font-semibold text-slate-700 text-sm">Rating mặc định (1–5)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="5"
-                  step="0.1"
-                  value={form.rating}
-                  onChange={(e) => setForm({ ...form, rating: e.target.value })}
-                  placeholder="Ví dụ: 4.8"
-                  className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
-                />
-              </div>
-              <div>
-                <label className="block mb-1 font-semibold text-slate-700 text-sm">Đã bán mặc định</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.sold}
-                  onChange={(e) => setForm({ ...form, sold: e.target.value })}
-                  placeholder="Ví dụ: 156"
-                  className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
-                />
-              </div>
+              <FormInput
+                label="Rating mặc định (1–5)"
+                type="number"
+                min="1"
+                max="5"
+                step="0.1"
+                value={form.rating}
+                onChange={(e) => setForm({ ...form, rating: e.target.value })}
+                placeholder="Ví dụ: 4.8"
+              />
+              <FormInput
+                label="Đã bán mặc định"
+                type="number"
+                min="0"
+                value={form.sold}
+                onChange={(e) => setForm({ ...form, sold: e.target.value })}
+                placeholder="Ví dụ: 156"
+              />
             </div>
 
             <div className="flex items-center gap-2 py-1 select-none">
@@ -727,14 +710,14 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
             </div>
 
             <div>
-              <label className="block mb-1 font-semibold text-slate-700 text-sm">Đặc điểm nổi bật</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Đặc điểm nổi bật</label>
               <span className="block mb-1.5 text-slate-400 text-xs">Mỗi dòng là 1 đặc điểm nổi bật.</span>
-              <textarea
+              <FormTextarea
                 value={form.features}
                 onChange={(e) => setForm({ ...form, features: e.target.value })}
                 rows={3}
                 placeholder="Nhựa Ecoplast nguyên sinh, không mùi, cực bền&#10;Bản lề giảm chấn inox 304&#10;Bảo hành hậu mãi 10 năm"
-                className="p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all resize-none"
+                className="p-4"
               />
             </div>
 
@@ -843,7 +826,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           {/* Right Column: Image Selection (1/3) */}
           <div className="space-y-4 lg:col-span-1">
             <div>
-              <label className="block mb-1 font-semibold text-slate-700 text-sm">Hình ảnh sản phẩm <RequiredMark /></label>
+              <label className="block mb-1 font-semibold text-slate-700 text-sm">Hình ảnh sản phẩm <span className="text-red-500">*</span></label>
               <div className="relative flex flex-col justify-center items-center bg-slate-50 p-6 border-2 border-slate-300 hover:border-blue-500 border-dashed rounded-2xl h-[200px] text-center transition-colors cursor-pointer">
                 <input
                   type="file"

@@ -664,19 +664,14 @@ BEGIN
 
     SELECT email INTO v_admin_email FROM auth.users WHERE id = auth.uid();
 
-    IF NOT v_had_earned THEN
-      INSERT INTO commissions (
-        collaborator_id, order_id, amount, type, note, created_by, created_by_email
-      ) VALUES (
-        NEW.collaborator_id,
-        NEW.id,
-        v_total_commission,
-        'order_earned',
-        NULL,
-        auth.uid(),
-        v_admin_email
-      );
-    END IF;
+    INSERT INTO commissions (
+      collaborator_id, order_id, amount, type, note,
+      created_by, created_by_email
+    ) VALUES (
+      NEW.collaborator_id, NEW.id, v_total_commission, 'order_earned',
+      CASE WHEN v_had_earned THEN 'Tính lại sau khi admin chuyển trạng thái' ELSE NULL END,
+      auth.uid(), (SELECT email FROM auth.users WHERE id = auth.uid())
+    );
 
     NEW.commission_amount := v_total_commission;
     NEW.commission_status := 'earned';

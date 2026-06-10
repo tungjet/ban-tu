@@ -281,14 +281,17 @@ export default function AdminDashboard() {
     phone: "",
     address: "",
     payment_method: "COD",
-    status: "Chờ xử lý"
+    status: "Chờ xử lý",
+    collaborator_id: null as string | null,
+    collaborator_code: null as string | null,
   });
   const [selectedOrderProducts, setSelectedOrderProducts] = useState<any[]>([]);
   const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [collabList, setCollabList] = useState<{ id: string; full_name: string | null; email: string | null; referral_code: string | null; status: string }[]>([]);
   const [adminProductSearch, setAdminProductSearch] = useState("");
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const { settings: storeSettings, loading: settingsLoading, updateSettings } = useStoreSettings();
-  const [localSettings, setLocalSettings] = useState({ phone: "", facebook: "", zalo: "", address: "" });
+  const [localSettings, setLocalSettings] = useState({ phone: "", facebook: "", zalo: "", address: "", default_commission_percent: 5 });
   const [settingsSaving, setSettingsSaving] = useState(false);
 
   
@@ -445,6 +448,22 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const fetchCollabs = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch("/api/admin/collaborators", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setCollabList(d.collaborators || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
 
 
   // Xoá đơn hàng (có xác nhận)
@@ -551,10 +570,11 @@ export default function AdminDashboard() {
     if (isLoggedIn) {
       const timer = window.setTimeout(() => {
         void fetchOrders();
+        void fetchCollabs();
       }, 0);
       return () => window.clearTimeout(timer);
     }
-  }, [isLoggedIn, fetchOrders]);
+  }, [isLoggedIn, fetchOrders, fetchCollabs]);
 
   // Đăng ký realtime lắng nghe đơn hàng mới từ Supabase
   useEffect(() => {
@@ -2082,14 +2102,39 @@ export default function AdminDashboard() {
                               </div>
                               <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Địa chỉ nhận hàng *</label>
-                                <input 
-                                  type="text" 
+                                <input
+                                  type="text"
                                   className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow placeholder-slate-400 text-slate-900"
                                   placeholder="Số nhà, tên đường, phường/xã..."
                                   value={newOrder.address}
                                   onChange={(e) => setNewOrder({...newOrder, address: e.target.value})}
                                   required
                                 />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Cộng tác viên</label>
+                                <select
+                                  value={newOrder.collaborator_id || ""}
+                                  onChange={(e) => {
+                                    const c = collabList.find((x) => x.id === e.target.value);
+                                    setNewOrder({
+                                      ...newOrder,
+                                      collaborator_id: e.target.value || null,
+                                      collaborator_code: c?.referral_code || null,
+                                    });
+                                  }}
+                                  className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
+                                >
+                                  <option value="">-- Không có --</option>
+                                  {collabList.filter((c) => c.status === "active").map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.full_name || c.email} ({c.referral_code})
+                                    </option>
+                                  ))}
+                                </select>
+                                {newOrder.collaborator_code && (
+                                  <p className="text-xs text-slate-500 mt-1">Mã giới thiệu: <span className="font-semibold text-blue-600">{newOrder.collaborator_code}</span></p>
+                                )}
                               </div>
                             </div>
 
@@ -2350,6 +2395,29 @@ export default function AdminDashboard() {
                               </div>
                             </div>
 
+                            {order.collaborator_code && (
+                              <div className="text-xs text-slate-500">
+                                CTV: <span className="font-medium text-blue-600">{order.collaborator_code}</span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-400">Hoa hồng:</span>
+                              {order.commission_status === "earned" && (
+                                <span className="text-green-600 font-semibold">
+                                  +{Number(order.commission_amount || 0).toLocaleString("vi-VN")}đ
+                                </span>
+                              )}
+                              {order.commission_status === "cancelled" && (
+                                <span className="text-rose-500 line-through">
+                                  {Number(order.commission_amount || 0).toLocaleString("vi-VN")}đ
+                                </span>
+                              )}
+                              {(!order.commission_status || order.commission_status === "none" || order.commission_status === "pending") && (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </div>
+
                             {/* Quick order actions & Delete */}
                             <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-50" onClick={(e) => e.stopPropagation()}>
                               <div className="text-[10px] text-slate-400">
@@ -2383,6 +2451,7 @@ export default function AdminDashboard() {
                           <th className="px-4 py-3 font-medium">Tổng tiền</th>
                           <th className="px-4 py-3 font-medium">Thanh toán</th>
                           <th className="px-4 py-3 font-medium">Trạng thái</th>
+                          <th className="px-4 py-3 font-medium">Hoa hồng</th>
                           <th className="px-4 py-3 font-medium">Hành động</th>
                         </tr>
                       </thead>
@@ -2426,6 +2495,21 @@ export default function AdminDashboard() {
                                   }`}>
                                     {order.status}
                                   </span>
+                                </td>
+                                <td className="px-4 py-4 text-right align-middle">
+                                  {order.commission_status === "earned" && (
+                                    <span className="text-green-600 font-semibold text-xs">
+                                      +{Number(order.commission_amount || 0).toLocaleString("vi-VN")}đ
+                                    </span>
+                                  )}
+                                  {order.commission_status === "cancelled" && (
+                                    <span className="text-rose-500 line-through text-xs">
+                                      {Number(order.commission_amount || 0).toLocaleString("vi-VN")}đ
+                                    </span>
+                                  )}
+                                  {(!order.commission_status || order.commission_status === "none" || order.commission_status === "pending") && (
+                                    <span className="text-slate-400 text-xs">—</span>
+                                  )}
                                 </td>
                                 <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                                   <div className="flex items-center gap-2">
@@ -3472,7 +3556,7 @@ export default function AdminDashboard() {
 
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Địa chỉ cửa hàng</label>
-                        <textarea 
+                        <textarea
                           rows={3}
                           className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900 resize-none"
                           placeholder="Ví dụ: 123 Đường ABC, Phường XYZ, Quận 1, TP.HCM"
@@ -3480,6 +3564,21 @@ export default function AdminDashboard() {
                           onChange={(e) => setLocalSettings(prev => ({...prev, address: e.target.value}))}
                           key={`address-${storeSettings.address}`}
                         />
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Hoa hồng CTV mặc định (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          defaultValue={storeSettings.default_commission_percent}
+                          onChange={(e) => setLocalSettings(prev => ({...prev, default_commission_percent: Number(e.target.value)}))}
+                          key={`commission-${storeSettings.default_commission_percent}`}
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-slate-900"
+                        />
+                        <p className="text-xs text-slate-500 mt-1">Áp dụng cho sản phẩm không có hoa hồng riêng.</p>
                       </div>
 
                       <div className="pt-4 border-t border-slate-100 flex justify-end">
@@ -3492,6 +3591,7 @@ export default function AdminDashboard() {
                               zalo: localSettings.zalo || storeSettings.zalo,
                               facebook: localSettings.facebook || storeSettings.facebook,
                               address: localSettings.address || storeSettings.address,
+                              default_commission_percent: localSettings.default_commission_percent ?? storeSettings.default_commission_percent,
                             };
                             const ok = await updateSettings(merged);
                             setSettingsSaving(false);

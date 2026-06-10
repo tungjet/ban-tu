@@ -158,6 +158,7 @@ interface Product {
   sold?: number | null;
   slug?: string | null;
   is_published?: boolean;
+  commission_percent?: number | string | null;
 }
 
 interface Category {
@@ -211,6 +212,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
     sold: "0",
     slug: "",
     is_published: true,
+    commission_percent: "" as string,
   });
 
   const selectedCategoryExists = categories.some((cat) => String(cat.id) === form.category_id);
@@ -267,6 +269,10 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           sold: String(product.sold || "0"),
           slug: product.slug || "",
           is_published: product.is_published !== false,
+          commission_percent:
+            product.commission_percent != null && product.commission_percent !== ""
+              ? String(product.commission_percent)
+              : "",
         });
         setSlugTouched(!!product.slug); // chế độ sửa: nếu đã có slug thì coi như user đã set
 
@@ -294,6 +300,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
           sold: "0",
           slug: "",
           is_published: true,
+          commission_percent: "",
         });
         setSlugTouched(false); // chế độ thêm: chưa ai đụng slug
         setImagePreviews([]);
@@ -401,6 +408,10 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
       const originalPriceValue = form.original_price
         ? Number(form.original_price.replace(/,/g, ""))
         : null;
+      const commissionPercentValue =
+        form.commission_percent && form.commission_percent !== ""
+          ? Number(form.commission_percent)
+          : null;
 
       // Sinh slug từ tên nếu ô slug rỗng; đảm bảo đã được cắt theo giới hạn
       const baseSlug = generateSlug(
@@ -420,6 +431,7 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
         rating: ratingValue,
         sold: soldValue,
         is_published: form.is_published,
+        commission_percent: commissionPercentValue,
       };
 
       // 4. Update or Insert
@@ -596,6 +608,21 @@ export function ProductForm({ product, categories, onCancel, onSaved }: ProductF
                   )}
                 </div>
               </div>
+            </div>
+
+            <div>
+              <label className="block mb-1 font-semibold text-slate-700 text-sm">Hoa hồng CTV riêng (%)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={form.commission_percent}
+                onChange={(e) => setForm({ ...form, commission_percent: e.target.value })}
+                placeholder="Để trống = dùng mặc định"
+                className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-slate-900 text-sm transition-all"
+              />
+              <p className="mt-1 text-xs text-slate-500">Nếu để trống, hệ thống sẽ dùng hoa hồng mặc định của cửa hàng.</p>
             </div>
 
             <div className="gap-4 grid grid-cols-1 sm:grid-cols-2">

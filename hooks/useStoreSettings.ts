@@ -8,6 +8,7 @@ export interface StoreSettings {
   zalo: string;
   facebook: string;
   address: string;
+  default_commission_percent: number;
 }
 
 const DEFAULT_SETTINGS: StoreSettings = {
@@ -15,6 +16,7 @@ const DEFAULT_SETTINGS: StoreSettings = {
   zalo: "",
   facebook: "",
   address: "",
+  default_commission_percent: 5,
 };
 
 // Cache để tránh fetch nhiều lần
@@ -47,6 +49,10 @@ export function useStoreSettings() {
             zalo: data.zalo || "",
             facebook: data.facebook || "",
             address: data.address || "",
+            default_commission_percent:
+              data.default_commission_percent != null
+                ? Number(data.default_commission_percent)
+                : 5,
           };
           cachedSettings = s;
           cacheTime = Date.now();

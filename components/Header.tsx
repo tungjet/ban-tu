@@ -8,6 +8,7 @@ import { useFavoriteStore } from "@/store/useFavoriteStore";
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const NAV_LINKS = [
   { href: "/", label: "Trang chủ" },
@@ -78,6 +79,7 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountAvatar, setAccountAvatar] = useState<string>("");
   const [hasAccount, setHasAccount] = useState(false);
+  const { user: currentUser, isCollaborator } = useCurrentUser();
 
 
   useEffect(() => {
@@ -192,6 +194,23 @@ export function Header() {
               )}
             </button>
 
+            {!currentUser && (
+              <Link
+                href="/dang-ky-ctv"
+                className="hidden sm:inline-flex text-sm font-medium text-blue-600 hover:text-blue-700 whitespace-nowrap"
+              >
+                Đăng ký CTV
+              </Link>
+            )}
+            {currentUser && isCollaborator && (
+              <Link
+                href="/cong-tac-vien"
+                className="hidden sm:inline-flex text-sm font-medium text-blue-600 hover:text-blue-700 whitespace-nowrap"
+              >
+                Khu vực CTV
+              </Link>
+            )}
+
             <Link
               href="/admin?tab=account"
               className="tap-target text-slate-600 hover:text-blue-600 transition-colors flex items-center justify-center"
@@ -273,6 +292,24 @@ export function Header() {
           >
             <UserIcon className="w-5 h-5" /> Tài khoản
           </Link>
+          {!currentUser && (
+            <Link
+              href="/dang-ky-ctv"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-blue-600 hover:bg-blue-50 font-medium transition-colors"
+            >
+              Đăng ký CTV
+            </Link>
+          )}
+          {currentUser && isCollaborator && (
+            <Link
+              href="/cong-tac-vien"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-blue-600 hover:bg-blue-50 font-medium transition-colors"
+            >
+              Khu vực CTV
+            </Link>
+          )}
         </nav>
 
         {/* Footer của drawer */}

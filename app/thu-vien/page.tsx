@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { createServerClient } from "@/lib/supabase";
+import { connectDB } from "@/lib/db";
+import { Product } from "@/lib/models/Product";
 import { Gallery, type GalleryItem } from "@/components/Gallery";
 import { Image as ImageIcon } from "lucide-react";
 
@@ -11,46 +12,35 @@ export const metadata: Metadata = {
 export const revalidate = 0;
 
 export default async function GalleryPage() {
-  const supabase = createServerClient();
-  const { data } = await supabase
-    .from("products")
-    .select("id, name, slug, price, original_price, image_url, images, description")
-    .eq("is_published", true)
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  type ProductForGallery = {
-    id: string;
-    name: string;
-    slug?: string | null;
-    price: number | string | null;
-    original_price?: number | string | null;
-    image_url?: string | null;
-    images?: string[] | null;
-    description?: string | null;
-  };
+  await connectDB();
+  const productDocs = await Product.find({ isPublished: true })
+    .select("name slug price originalPrice imageUrl images description")
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .lean();
 
   const galleryItems: GalleryItem[] = [];
-  for (const p of (data || []) as ProductForGallery[]) {
+  for (const p of productDocs) {
     const productImages =
       p.images && p.images.length > 0
         ? p.images
-        : p.image_url
-        ? [p.image_url]
+        : p.imageUrl
+        ? [p.imageUrl]
         : [];
-    productImages.forEach((img, idx) => {
+    const productId = p._id.toString();
+    productImages.forEach((img: string, idx: number) => {
       galleryItems.push({
-        id: `${p.id}-${idx}`,
+        id: `${productId}-${idx}`,
         image_url: img,
         title: p.name,
         description: (p.description || "").replace(/<[^>]*>/g, "").slice(0, 140),
         product: {
-          id: p.id,
+          id: productId,
           name: p.name,
           slug: p.slug ?? null,
           price: p.price ?? null,
-          original_price: p.original_price ? Number(p.original_price) : null,
-          image_url: p.image_url ?? null,
+          original_price: p.originalPrice ? Number(p.originalPrice) : null,
+          image_url: p.imageUrl ?? null,
         },
       });
     });

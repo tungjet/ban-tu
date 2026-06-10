@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, Layers } from "lucide-react";
 import type { Metadata } from "next";
-import { supabase } from "@/lib/supabase";
+import { connectDB } from "@/lib/db";
+import { Category } from "@/lib/models/Category";
 
 export const metadata: Metadata = {
   title: "Danh mục sản phẩm | Tủ Nhựa Giá Rẻ",
@@ -15,12 +16,16 @@ export const metadata: Metadata = {
 };
 
 export default async function CategoryPage() {
-  const { data } = await supabase
-    .from("categories")
-    .select("id, name, slug, image_url, description, display_order")
-    .order("display_order", { ascending: true });
-
-  const categories = data || [];
+  await connectDB();
+  const categoryDocs = await Category.find().sort({ displayOrder: 1, name: 1 }).lean();
+  const categories = categoryDocs.map((c) => ({
+    id: c._id.toString(),
+    name: c.name,
+    slug: c.slug,
+    image_url: c.imageUrl ?? null,
+    description: c.description ?? "",
+    display_order: c.displayOrder ?? 0,
+  }));
 
   return (
     <div className="bg-slate-50 min-h-screen pb-20">

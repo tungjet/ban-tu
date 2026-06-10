@@ -1,31 +1,28 @@
 import { MetadataRoute } from "next";
-import { supabase } from "@/lib/supabase";
+import { connectDB } from "@/lib/db";
+import { Product } from "@/lib/models/Product";
+import { Category } from "@/lib/models/Category";
 
 const BASE_URL = "https://noithatgiare.shop";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // Lấy tất cả sản phẩm
-  const { data: products } = await supabase
-    .from("products")
-    .select("slug, id, updated_at")
-    .eq("is_published", true)
-    .order("created_at", { ascending: false });
+  await connectDB();
 
-  // Lấy tất cả danh mục
-  const { data: categories } = await supabase
-    .from("categories")
-    .select("id, updated_at");
+  const productDocs = await Product.find({ isPublished: true })
+    .select("slug updatedAt")
+    .lean();
+  const categoryDocs = await Category.find().select("_id updatedAt").lean();
 
-  const productUrls: MetadataRoute.Sitemap = (products || []).map((p) => ({
-    url: `${BASE_URL}/san-pham/${p.slug || p.id}`,
-    lastModified: p.updated_at ? new Date(p.updated_at) : new Date(),
+  const productUrls: MetadataRoute.Sitemap = productDocs.map((p) => ({
+    url: `${BASE_URL}/san-pham/${p.slug || p._id.toString()}`,
+    lastModified: p.updatedAt ? new Date(p.updatedAt) : new Date(),
     changeFrequency: "weekly",
     priority: 0.8,
   }));
 
-  const categoryUrls: MetadataRoute.Sitemap = (categories || []).map((c) => ({
-    url: `${BASE_URL}/san-pham?category=${c.id}`,
-    lastModified: c.updated_at ? new Date(c.updated_at) : new Date(),
+  const categoryUrls: MetadataRoute.Sitemap = categoryDocs.map((c) => ({
+    url: `${BASE_URL}/san-pham?category=${c._id.toString()}`,
+    lastModified: c.updatedAt ? new Date(c.updatedAt) : new Date(),
     changeFrequency: "weekly",
     priority: 0.6,
   }));

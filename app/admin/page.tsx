@@ -2,13 +2,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { 
-  BarChart3, 
-  Box, 
-  ShoppingCart, 
-  Users, 
-  Settings, 
-  ArrowUpRight, 
+import {
+  BarChart3,
+  Box,
+  ShoppingCart,
+  Users,
+  Settings,
+  ArrowUpRight,
   ArrowDownRight,
   Bell,
   Globe,
@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
 import { ProductForm } from "@/components/ProductForm";
 import CollaboratorsTab from "@/components/admin/CollaboratorsTab";
@@ -93,7 +93,7 @@ export default function AdminDashboard() {
   const [chartFilter, setChartFilter] = useState("month"); // 'day', 'week', 'month'
 
   // Profile states & functions
-  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [user, setUser] = useState<{ id: string; email?: string | null; name?: string | null } | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string>("");
   const [profileSaving, setProfileSaving] = useState(false);
@@ -105,23 +105,6 @@ export default function AdminDashboard() {
   const [passwordSaving, setPasswordSaving] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const applyUser = (u: SupabaseUser | null) => {
-    setUser(u);
-    if (u) {
-      const meta = (u.user_metadata ?? {}) as {
-        full_name?: string;
-        display_name?: string;
-        name?: string;
-        avatar_url?: string;
-      };
-      setDisplayName(meta.full_name || meta.display_name || meta.name || "");
-      setAvatarUrl(meta.avatar_url || "");
-    } else {
-      setDisplayName("");
-      setAvatarUrl("");
-    }
-  };
 
   // Sync activeTab with URL tab search parameter
   useEffect(() => {
@@ -141,19 +124,8 @@ export default function AdminDashboard() {
     if (!user) return;
     setProfileSaving(true);
     try {
-      const trimmedName = displayName.trim();
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          full_name: trimmedName,
-          display_name: trimmedName,
-          name: trimmedName,
-        },
-      });
-      if (error) {
-        toast.error("Lỗi cập nhật: " + error.message);
-        return;
-      }
-      toast.success("Đã lưu tên hiển thị");
+      // TODO: replace with PATCH /api/admin/profile once the endpoint exists
+      toast.success("Đã lưu tên hiển thị (chưa ghi vào DB)");
     } finally {
       setProfileSaving(false);
     }
@@ -197,16 +169,9 @@ export default function AdminDashboard() {
 
       const publicUrl = urlData.publicUrl;
 
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: { avatar_url: publicUrl },
-      });
-      if (updateError) {
-        toast.error("Lỗi cập nhật avatar: " + updateError.message);
-        return;
-      }
-
+      // TODO: replace with PATCH /api/admin/profile to persist avatar_url
       setAvatarUrl(publicUrl);
-      toast.success("Đã cập nhật avatar");
+      toast.success("Đã cập nhật avatar (chưa ghi vào DB)");
     } finally {
       setAvatarUploading(false);
     }
@@ -216,15 +181,9 @@ export default function AdminDashboard() {
     if (!user || !avatarUrl) return;
     setAvatarUploading(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: { avatar_url: "" },
-      });
-      if (error) {
-        toast.error("Lỗi xoá avatar: " + error.message);
-        return;
-      }
+      // TODO: replace with PATCH /api/admin/profile to clear avatar_url
       setAvatarUrl("");
-      toast.success("Đã xoá avatar");
+      toast.success("Đã xoá avatar (chưa ghi vào DB)");
     } finally {
       setAvatarUploading(false);
     }
@@ -246,14 +205,8 @@ export default function AdminDashboard() {
 
     setPasswordSaving(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-      if (error) {
-        toast.error("Lỗi đổi mật khẩu: " + error.message);
-        return;
-      }
-      toast.success("Đã đổi mật khẩu");
+      // TODO: replace with POST /api/admin/change-password once the endpoint exists
+      toast.success("Đã đổi mật khẩu (chưa ghi vào DB)");
       setNewPassword("");
       setConfirmPassword("");
     } finally {
@@ -344,38 +297,26 @@ export default function AdminDashboard() {
 
 
 
-  // Kiểm tra session khi reload trang
+  // Kiểm tra session khi reload trang (NextAuth via useSession)
+  const { data: nextAuthSession, status: nextAuthStatus } = useSession();
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          setIsLoggedIn(true);
-          applyUser(session.user);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    checkSession();
-
-    // Lắng nghe thay đổi trạng thái auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setIsLoggedIn(true);
-        applyUser(session.user);
-      } else {
-        setIsLoggedIn(false);
-        applyUser(null);
-      }
-      setIsLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    if (nextAuthStatus === "loading") {
+      setIsLoading(true);
+      return;
+    }
+    const s = nextAuthSession?.user;
+    if (s) {
+      setIsLoggedIn(true);
+      setUser({ id: s.id ?? "", email: s.email ?? null, name: s.name ?? null });
+      setDisplayName(s.name || "");
+    } else {
+      setIsLoggedIn(false);
+      setUser(null);
+      setDisplayName("");
+      setAvatarUrl("");
+    }
+    setIsLoading(false);
+  }, [nextAuthSession, nextAuthStatus]);
 
   // Load read_order_ids from localStorage
   useEffect(() => {
@@ -413,50 +354,43 @@ export default function AdminDashboard() {
     toast.success("Đã đánh dấu tất cả thông báo là đã đọc!");
   };
 
-  // Xử lý đăng nhập bằng Supabase Auth (hỗ trợ nhập email trực tiếp hoặc tự động thêm @gmail.com)
+  // Xử lý đăng nhập bằng NextAuth credentials provider
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Sử dụng email trực tiếp nếu có ký tự '@', ngược lại tự động thêm @gmail.com
     const trimmedUsername = username.trim();
     const email = trimmedUsername.includes("@") ? trimmedUsername : `${trimmedUsername}@gmail.com`;
-    
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
 
-    if (error) {
+    const result = await signIn("credentials", { email, password, redirect: false });
+
+    if (result?.error) {
       setError("Tài khoản hoặc mật khẩu không đúng!");
-      console.error(error.message);
-    } else if (data.user) {
+      console.error(result.error);
+    } else {
       setIsLoggedIn(true);
       setError("");
-      applyUser(data.user);
     }
   };
 
-  // Lấy danh sách đơn hàng từ Supabase (dùng useCallback để tránh lỗi lint)
+  // Lấy danh sách đơn hàng từ API Mongoose (dùng useCallback để tránh lỗi lint)
   const fetchOrders = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error(error);
-    } else {
-      setOrders(data || []);
+    try {
+      const res = await fetch("/api/admin/orders", { credentials: "include" });
+      if (!res.ok) {
+        console.error("fetchOrders failed", res.status);
+        return;
+      }
+      const d = await res.json();
+      setOrders(d.orders || []);
+    } catch (err) {
+      console.error(err);
     }
   }, []);
 
   const fetchCollabs = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const res = await fetch("/api/admin/collaborators", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      const res = await fetch("/api/admin/collaborators", { credentials: "include" });
       if (res.ok) {
         const d = await res.json();
         setCollabList(d.collaborators || []);
@@ -478,18 +412,21 @@ export default function AdminDashboard() {
       isDanger: true,
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, show: false }));
-        const { error } = await supabase
-          .from('orders')
-          .delete()
-          .eq('id', order.id);
-
-        if (error) {
-          console.error(error);
-          toast.error("Lỗi khi xoá đơn hàng: " + error.message);
-        } else {
+        try {
+          const res = await fetch(`/api/admin/orders/${order.id}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            toast.error("Lỗi khi xoá đơn hàng: " + (d.error || res.statusText));
+            return;
+          }
           toast.success("Đã xoá đơn hàng thành công!");
           setSelectedOrderDetail((prev: any) => (prev?.id === order.id ? null : prev));
           fetchOrders();
+        } catch (err: any) {
+          toast.error("Lỗi khi xoá đơn hàng: " + err.message);
         }
       },
     });
@@ -513,20 +450,25 @@ export default function AdminDashboard() {
       isDanger: false,
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, show: false }));
-        const { error } = await supabase
-          .from('orders')
-          .update({ status: nextStatus })
-          .eq('id', order.id);
-
-        if (error) {
-          console.error(error);
-          toast.error("Lỗi khi cập nhật trạng thái đơn hàng: " + error.message);
-        } else {
+        try {
+          const res = await fetch(`/api/admin/orders/${order.id}`, {
+            method: "PATCH",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: nextStatus }),
+          });
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            toast.error("Lỗi khi cập nhật trạng thái đơn hàng: " + (d.error || res.statusText));
+            return;
+          }
           toast.success(`Đã chuyển trạng thái đơn hàng ${code} sang "${nextStatus}"`);
           fetchOrders();
           if (isFromDetail) {
             setSelectedOrderDetail((prev: any) => prev && prev.id === order.id ? { ...prev, status: nextStatus } : prev);
           }
+        } catch (err: any) {
+          toast.error("Lỗi khi cập nhật trạng thái đơn hàng: " + err.message);
         }
       }
     });
@@ -578,65 +520,8 @@ export default function AdminDashboard() {
     }
   }, [isLoggedIn, fetchOrders, fetchCollabs]);
 
-  // Đăng ký realtime lắng nghe đơn hàng mới từ Supabase
-  useEffect(() => {
-    if (!isLoggedIn) return;
-
-    const channel = supabase
-      .channel("admin-orders-realtime-channel")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "orders",
-        },
-        (payload) => {
-          const newOrder = payload.new;
-          fetchOrders();
-          
-          toast.success(
-            `🔔 Đơn hàng mới! ${newOrder.customer_name || "Khách hàng"} vừa đặt đơn hàng mới.`,
-            {
-              duration: 6000,
-              icon: "🛒",
-            }
-          );
-
-          // Phát âm thanh chime chất lượng cao qua Web Audio API
-          try {
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-            if (AudioContextClass) {
-              const audioCtx = new AudioContextClass();
-              const osc = audioCtx.createOscillator();
-              const gain = audioCtx.createGain();
-              
-              osc.connect(gain);
-              gain.connect(audioCtx.destination);
-              
-              osc.type = "sine";
-              // Chime: C5 -> E5 -> G5
-              osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
-              osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.12); // E5
-              osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.24); // G5
-              
-              gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-              gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
-              
-              osc.start(audioCtx.currentTime);
-              osc.stop(audioCtx.currentTime + 0.4);
-            }
-          } catch (audioErr) {
-            console.warn("Could not play notification sound:", audioErr);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isLoggedIn, fetchOrders]);
+  // TODO: realtime order notifications removed during MongoDB migration.
+  // NextAuth has no realtime equivalent; if needed, implement polling or SSE later.
 
   const derivedCustomers = useMemo(() => {
     const customerMap = new Map();
@@ -722,70 +607,69 @@ export default function AdminDashboard() {
     return data;
   }, [orders, chartFilter]);
 
-  // Lấy danh sách sản phẩm từ Supabase (dùng useCallback để tránh lỗi lint)
+  // Lấy danh sách sản phẩm từ API Mongoose (dùng useCallback để tránh lỗi lint)
   const fetchProducts = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error(error);
-    } else {
-      setProducts(data || []);
+    try {
+      const res = await fetch("/api/admin/products", { credentials: "include" });
+      if (!res.ok) {
+        console.error("fetchProducts failed", res.status);
+        return;
+      }
+      const d = await res.json();
+      setProducts(d.products || []);
+    } catch (err) {
+      console.error(err);
     }
   }, []);
 
-  // Lấy danh sách bình luận từ Supabase
+  // Lấy danh sách bình luận từ API Mongoose
   const fetchComments = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('comments')
-      .select('*, products(name)')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error(error);
-    } else {
-      setComments(data || []);
+    try {
+      const res = await fetch("/api/admin/comments", { credentials: "include" });
+      if (!res.ok) {
+        console.error("fetchComments failed", res.status);
+        return;
+      }
+      const d = await res.json();
+      setComments(d.comments || []);
+    } catch (err) {
+      console.error(err);
     }
   }, []);
 
   // Testimonials (đánh giá khách hàng trang chủ)
   const fetchTestimonials = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('testimonials')
-      .select('*')
-      .order('display_order', { ascending: true });
-    if (error) {
-      console.error(error);
-    } else {
-      setTestimonials(data || []);
+    try {
+      const res = await fetch("/api/admin/testimonials", { credentials: "include" });
+      if (!res.ok) return;
+      const d = await res.json();
+      setTestimonials(d.testimonials || []);
+    } catch (err) {
+      console.error(err);
     }
   }, []);
 
   // Homepage features (3 ưu điểm trang chủ)
   const fetchHomepageFeatures = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('homepage_features')
-      .select('*')
-      .order('display_order', { ascending: true });
-    if (error) {
-      console.error(error);
-    } else {
-      setHomepageFeatures(data || []);
+    try {
+      const res = await fetch("/api/admin/features", { credentials: "include" });
+      if (!res.ok) return;
+      const d = await res.json();
+      setHomepageFeatures(d.features || []);
+    } catch (err) {
+      console.error(err);
     }
   }, []);
 
   // Reviews sản phẩm có sao
   const fetchProductReviews = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('reviews')
-      .select('*, products(name)')
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.error(error);
-    } else {
-      setProductReviews(data || []);
+    try {
+      const res = await fetch("/api/admin/reviews", { credentials: "include" });
+      if (!res.ok) return;
+      const d = await res.json();
+      setProductReviews(d.reviews || []);
+    } catch (err) {
+      console.error(err);
     }
   }, []);
 
@@ -812,27 +696,33 @@ export default function AdminDashboard() {
     const existingReplies = parseReplies(comment?.reply);
     const newReplies = [...existingReplies, { content: replyText, created_at: new Date().toISOString() }];
 
-    const { error } = await supabase
-      .from('comments')
-      .update({ 
-        reply: JSON.stringify(newReplies),
-        replied_at: new Date().toISOString()
-      })
-      .eq('id', commentId);
-
-    setSubmittingReplyIds(prev => {
-      const next = new Set(prev);
-      next.delete(commentId);
-      return next;
-    });
-
-    if (error) {
-      console.error(error);
-      toast.error("Lỗi khi gửi trả lời: " + error.message);
-    } else {
+    try {
+      const res = await fetch("/api/admin/comments", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: commentId,
+          reply: JSON.stringify(newReplies),
+          repliedAt: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error("Lỗi khi gửi trả lời: " + (d.error || res.statusText));
+        return;
+      }
       toast.success("Đã gửi trả lời thành công!");
       setReplyTexts(prev => { const next = {...prev}; delete next[commentId]; return next; });
       fetchComments();
+    } catch (err: any) {
+      toast.error("Lỗi khi gửi trả lời: " + err.message);
+    } finally {
+      setSubmittingReplyIds(prev => {
+        const next = new Set(prev);
+        next.delete(commentId);
+        return next;
+      });
     }
   };
 
@@ -844,17 +734,20 @@ export default function AdminDashboard() {
       message: "Bạn có chắc chắn muốn xoá sản phẩm này?",
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, show: false }));
-        const { error } = await supabase
-          .from('products')
-          .delete()
-          .eq('id', id);
-
-        if (error) {
-          console.error(error);
-          toast.error("Lỗi khi xoá sản phẩm: " + error.message);
-        } else {
+        try {
+          const res = await fetch(`/api/admin/products/${id}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            toast.error("Lỗi khi xoá sản phẩm: " + (d.error || res.statusText));
+            return;
+          }
           toast.success("Đã xoá sản phẩm thành công!");
           fetchProducts();
+        } catch (err: any) {
+          toast.error("Lỗi khi xoá sản phẩm: " + err.message);
         }
       }
     });
@@ -862,17 +755,22 @@ export default function AdminDashboard() {
 
   // Thay đổi trạng thái hiển thị ẩn/hiện của sản phẩm
   const toggleProductVisibility = async (id: string, currentStatus: boolean) => {
-    const { error } = await supabase
-      .from('products')
-      .update({ is_published: !currentStatus })
-      .eq('id', id);
-
-    if (error) {
-      console.error(error);
-      toast.error("Lỗi khi thay đổi trạng thái sản phẩm: " + error.message);
-    } else {
+    try {
+      const res = await fetch(`/api/admin/products/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublished: !currentStatus }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error("Lỗi khi thay đổi trạng thái sản phẩm: " + (d.error || res.statusText));
+        return;
+      }
       toast.success("Đã cập nhật trạng thái hiển thị sản phẩm!");
       fetchProducts();
+    } catch (err: any) {
+      toast.error("Lỗi khi thay đổi trạng thái sản phẩm: " + err.message);
     }
   };
 
@@ -882,47 +780,49 @@ export default function AdminDashboard() {
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    
+
     try {
       let uploadedImageUrl = "";
-      
+
       if (categoryFile) {
         const fileExt = categoryFile.name.split('.').pop();
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
         const filePath = `${fileName}`;
-        
+
         const { error: uploadError } = await supabase.storage
           .from('product-images')
           .upload(filePath, categoryFile);
-          
+
         if (uploadError) {
           console.error(uploadError);
           toast.error("Lỗi khi upload ảnh danh mục: " + uploadError.message);
           return;
         }
-        
+
         const { data: urlData } = supabase.storage
           .from('product-images')
           .getPublicUrl(filePath);
-          
+
         uploadedImageUrl = urlData.publicUrl;
       }
 
-      const { error } = await supabase
-        .from('categories')
-        .insert([{ ...newCategory, image_url: uploadedImageUrl }]);
-
-      if (error) {
-        console.error(error);
-        toast.error("Lỗi khi thêm danh mục: " + error.message);
-      } else {
-        toast.success("Đã thêm danh mục thành công!");
-        setNewCategory({ name: "", slug: "", image_url: "" });
-        setCategoryFile(null);
-        setCategoryImagePreview("");
-        fetchCategories();
-        setShowCategoryModal(false);
+      const res = await fetch("/api/admin/categories", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...newCategory, image_url: uploadedImageUrl }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error("Lỗi khi thêm danh mục: " + (d.error || res.statusText));
+        return;
       }
+      toast.success("Đã thêm danh mục thành công!");
+      setNewCategory({ name: "", slug: "", image_url: "" });
+      setCategoryFile(null);
+      setCategoryImagePreview("");
+      fetchCategories();
+      setShowCategoryModal(false);
     } catch (error: any) {
       console.error(error);
       toast.error("Lỗi khi thêm danh mục: " + error.message);
@@ -932,24 +832,27 @@ export default function AdminDashboard() {
   };
 
   // Xoá danh mục
-  const deleteCategory = async (id: number) => {
+  const deleteCategory = async (id: string | number) => {
     setConfirmDialog({
       show: true,
       title: "Xác nhận xoá",
       message: "Bạn có chắc chắn muốn xoá danh mục này?",
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, show: false }));
-        const { error } = await supabase
-          .from('categories')
-          .delete()
-          .eq('id', id);
-
-        if (error) {
-          console.error(error);
-          toast.error("Lỗi khi xoá danh mục: " + error.message);
-        } else {
+        try {
+          const res = await fetch(`/api/admin/categories/${id}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            toast.error("Lỗi khi xoá danh mục: " + (d.error || res.statusText));
+            return;
+          }
           toast.success("Đã xoá danh mục thành công!");
           fetchCategories();
+        } catch (err: any) {
+          toast.error("Lỗi khi xoá danh mục: " + err.message);
         }
       }
     });
@@ -1003,12 +906,16 @@ export default function AdminDashboard() {
 
   // Fetch danh mục
   const fetchCategories = async () => {
-    const { data, error } = await supabase.from('categories').select('*').order('created_at', { ascending: false });
-    if (error) {
-      console.error(error);
-      toast.error("Lỗi khi tải danh mục: " + error.message);
-    } else {
-      setCategories(data || []);
+    try {
+      const res = await fetch("/api/admin/categories", { credentials: "include" });
+      if (!res.ok) {
+        console.error("fetchCategories failed", res.status);
+        return;
+      }
+      const d = await res.json();
+      setCategories(d.categories || []);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -1058,18 +965,33 @@ export default function AdminDashboard() {
       ...testimonialForm,
       initial: testimonialForm.initial || (testimonialForm.customer_name?.trim().charAt(0).toUpperCase() || ""),
     };
-    let error;
-    if (editingTestimonial?.id) {
-      ({ error } = await supabase.from("testimonials").update(payload).eq("id", editingTestimonial.id));
-    } else {
-      ({ error } = await supabase.from("testimonials").insert([payload]));
-    }
-    if (error) {
-      toast.error("Lỗi: " + error.message);
-    } else {
+    try {
+      let res: Response;
+      if (editingTestimonial?.id) {
+        res = await fetch("/api/admin/testimonials", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editingTestimonial.id, ...payload }),
+        });
+      } else {
+        res = await fetch("/api/admin/testimonials", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error("Lỗi: " + (d.error || res.statusText));
+        return;
+      }
       toast.success(editingTestimonial ? "Đã cập nhật testimonial" : "Đã thêm testimonial");
       resetTestimonialForm();
       fetchTestimonials();
+    } catch (err: any) {
+      toast.error("Lỗi: " + err.message);
     }
   };
 
@@ -1093,9 +1015,21 @@ export default function AdminDashboard() {
       message: "Hành động này không thể hoàn tác.",
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, show: false }));
-        const { error } = await supabase.from("testimonials").delete().eq("id", id);
-        if (error) toast.error(error.message);
-        else { toast.success("Đã xoá"); fetchTestimonials(); }
+        try {
+          const res = await fetch(`/api/admin/testimonials?id=${id}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            toast.error(d.error || res.statusText);
+            return;
+          }
+          toast.success("Đã xoá");
+          fetchTestimonials();
+        } catch (err: any) {
+          toast.error(err.message);
+        }
       },
     });
   };
@@ -1115,18 +1049,33 @@ export default function AdminDashboard() {
 
   const handleSaveFeature = async (e: React.FormEvent) => {
     e.preventDefault();
-    let error;
-    if (editingFeature?.id) {
-      ({ error } = await supabase.from("homepage_features").update(featureForm).eq("id", editingFeature.id));
-    } else {
-      ({ error } = await supabase.from("homepage_features").insert([featureForm]));
-    }
-    if (error) {
-      toast.error("Lỗi: " + error.message);
-    } else {
+    try {
+      let res: Response;
+      if (editingFeature?.id) {
+        res = await fetch("/api/admin/features", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editingFeature.id, ...featureForm }),
+        });
+      } else {
+        res = await fetch("/api/admin/features", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(featureForm),
+        });
+      }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error("Lỗi: " + (d.error || res.statusText));
+        return;
+      }
       toast.success(editingFeature ? "Đã cập nhật ưu điểm" : "Đã thêm ưu điểm");
       resetFeatureForm();
       fetchHomepageFeatures();
+    } catch (err: any) {
+      toast.error("Lỗi: " + err.message);
     }
   };
 
@@ -1149,9 +1098,21 @@ export default function AdminDashboard() {
       message: "Hành động này không thể hoàn tác.",
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, show: false }));
-        const { error } = await supabase.from("homepage_features").delete().eq("id", id);
-        if (error) toast.error(error.message);
-        else { toast.success("Đã xoá"); fetchHomepageFeatures(); }
+        try {
+          const res = await fetch(`/api/admin/features?id=${id}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            toast.error(d.error || res.statusText);
+            return;
+          }
+          toast.success("Đã xoá");
+          fetchHomepageFeatures();
+        } catch (err: any) {
+          toast.error(err.message);
+        }
       },
     });
   };
@@ -1175,13 +1136,23 @@ export default function AdminDashboard() {
       toast.error("Vui lòng chọn sản phẩm");
       return;
     }
-    const { error } = await supabase.from("reviews").insert([reviewForm]);
-    if (error) {
-      toast.error("Lỗi: " + error.message);
-    } else {
+    try {
+      const res = await fetch("/api/admin/reviews", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reviewForm),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error("Lỗi: " + (d.error || res.statusText));
+        return;
+      }
       toast.success("Đã thêm đánh giá");
       resetReviewForm();
       fetchProductReviews();
+    } catch (err: any) {
+      toast.error("Lỗi: " + err.message);
     }
   };
 
@@ -1192,9 +1163,21 @@ export default function AdminDashboard() {
       message: "Hành động này không thể hoàn tác.",
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, show: false }));
-        const { error } = await supabase.from("reviews").delete().eq("id", id);
-        if (error) toast.error(error.message);
-        else { toast.success("Đã xoá"); fetchProductReviews(); }
+        try {
+          const res = await fetch(`/api/admin/reviews?id=${id}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            toast.error(d.error || res.statusText);
+            return;
+          }
+          toast.success("Đã xoá");
+          fetchProductReviews();
+        } catch (err: any) {
+          toast.error(err.message);
+        }
       },
     });
   };
@@ -1561,17 +1544,17 @@ export default function AdminDashboard() {
               >
                 <Globe className="w-5 h-5" /> Xem Website
               </Link>
-              <button 
+              <button
                 onClick={async () => {
-                  const { error } = await supabase.auth.signOut();
-                  if (error) {
-                    toast.error("Lỗi khi đăng xuất: " + error.message);
-                    return;
+                  try {
+                    await signOut({ redirect: false });
+                    setIsLoggedIn(false);
+                    setUsername("");
+                    setPassword("");
+                    setActiveTab("dashboard");
+                  } catch (err: any) {
+                    toast.error("Lỗi khi đăng xuất: " + err.message);
                   }
-                  setIsLoggedIn(false);
-                  setUsername("");
-                  setPassword("");
-                  setActiveTab("dashboard");
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-red-900/20 hover:text-red-400 transition-colors"
               >
@@ -2290,16 +2273,22 @@ export default function AdminDashboard() {
                               // Sinh order_code dạng BT-<6 số> giống trang /thanh-toan
                               const order_code = `BT-${Math.floor(100000 + Math.random() * 900000)}`;
 
-                              // Save order
-                              const { error } = await supabase.from('orders').insert([{
-                                ...newOrder,
-                                total_amount,
-                                items: orderItems,
-                                order_code,
-                              }]);
-                              
-                              if (error) {
-                                toast.error("Lỗi khi tạo đơn hàng: " + error.message);
+                              // Save order via API
+                              const res = await fetch("/api/admin/orders", {
+                                method: "POST",
+                                credentials: "include",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  ...newOrder,
+                                  totalAmount: total_amount,
+                                  items: orderItems,
+                                  orderCode: order_code,
+                                }),
+                              });
+
+                              if (!res.ok) {
+                                const d = await res.json().catch(() => ({}));
+                                toast.error("Lỗi khi tạo đơn hàng: " + (d.error || res.statusText));
                               } else {
                                 toast.success("Tạo đơn hàng thành công!");
                                 setShowOrderModal(false);

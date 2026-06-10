@@ -6,7 +6,6 @@ import { ChevronRight, Filter, X, Star, SlidersHorizontal, Home, Check } from "l
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ProductActions } from "@/components/ProductActions";
-import { supabase } from "@/lib/supabase";
 import { CardFavoriteButton } from "@/components/CardFavoriteButton";
 import { formatProductPrice, getNumericPrice } from "@/lib/price";
 import SearchInput from "@/components/form/SearchInput";
@@ -42,12 +41,14 @@ function ProductListingContent() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [{ data: prods }, { data: cats }] = await Promise.all([
-        supabase.from('products').select('*').eq('is_published', true),
-        supabase.from('categories').select('id, name, slug'),
+      const [prodsRes, catsRes] = await Promise.all([
+        fetch("/api/products"),
+        fetch("/api/categories"),
       ]);
-      setProducts(prods || []);
-      setCategories(cats || []);
+      const prodsData = await prodsRes.json().catch(() => ({}));
+      const catsData = await catsRes.json().catch(() => ({}));
+      setProducts(prodsData.products || []);
+      setCategories(catsData.categories || []);
     };
     fetchData();
   }, []);

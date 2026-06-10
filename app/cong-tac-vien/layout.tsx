@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, ShoppingBag, Coins, Banknote, Plus, LogOut } from "lucide-react";
+import { LayoutDashboard, ShoppingBag, Coins, Banknote, Plus, LogOut, Settings } from "lucide-react";
 import toast from "react-hot-toast";
 import { signOut } from "next-auth/react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -14,6 +14,7 @@ const tabs = [
   { id: "hoa-hong", label: "Hoa hồng", icon: Coins, href: "/cong-tac-vien/hoa-hong" },
   { id: "rut-tien", label: "Rút tiền", icon: Banknote, href: "/cong-tac-vien/rut-tien" },
   { id: "tao-don", label: "Tạo đơn", icon: Plus, href: "/cong-tac-vien/tao-don" },
+  { id: "cai-dat", label: "Cài đặt", icon: Settings, href: "/cong-tac-vien/cai-dat" },
 ];
 
 export default function CTVDashboardLayout({ children }: { children: React.ReactNode }) {
@@ -25,14 +26,14 @@ export default function CTVDashboardLayout({ children }: { children: React.React
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
-      router.replace("/dang-nhap-ctv");
+      router.replace("/dang-nhap");
       return;
     }
-    if (profile && !isCollaborator) {
-      toast.error("Tài khoản chưa được duyệt");
-      router.replace("/dang-nhap-ctv");
+    if (user.status === "banned") {
+      toast.error("Tài khoản đã bị khóa");
+      router.replace("/dang-nhap");
     }
-  }, [isLoading, user, profile, isCollaborator, router]);
+  }, [isLoading, user, router]);
 
   const handleLogout = async () => {
     await signOut({ redirect: false });

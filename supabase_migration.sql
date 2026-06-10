@@ -234,16 +234,25 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_note TEXT DEFAULT '';
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Anyone can insert orders" ON orders;
-CREATE POLICY "Anyone can insert orders" ON orders
-  FOR INSERT WITH CHECK (true);
+CREATE POLICY orders_admin_insert ON orders
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  );
 
 DROP POLICY IF EXISTS "Anyone can read orders" ON orders;
 CREATE POLICY "Anyone can read orders" ON orders
   FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Anyone can update orders" ON orders;
-CREATE POLICY "Anyone can update orders" ON orders
-  FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY orders_admin_update ON orders
+  FOR UPDATE
+  USING (
+    EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  );
 
 DROP POLICY IF EXISTS "Anyone can delete orders" ON orders;
 CREATE POLICY "Anyone can delete orders" ON orders
@@ -580,12 +589,12 @@ $$;
 
 DROP TRIGGER IF EXISTS profiles_generate_referral ON profiles;
 CREATE TRIGGER profiles_generate_referral
-BEFORE UPDATE ON profiles
+BEFORE INSERT OR UPDATE ON profiles
 FOR EACH ROW
 EXECUTE FUNCTION trg_generate_referral_code();
 
 -- 3.3 Apply commission on order status change
-CREATE OR REPLACE FUNCTION apply_order_commission()
+CREATE OR REPLACE FUNCTION trg_apply_order_commission()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -624,16 +633,25 @@ BEGIN
     ) INTO v_had_earned;
 
     IF NEW.items IS NOT NULL AND jsonb_typeof(NEW.items) = 'array' THEN
+      CREATE TEMP TABLE IF NOT EXISTS _order_product_rates (
+        product_id TEXT,
+        pct NUMERIC(5,2)
+      ) ON COMMIT DROP;
+      DELETE FROM _order_product_rates;
+      INSERT INTO _order_product_rates (product_id, pct)
+      SELECT id::text, commission_percent
+        FROM products
+       WHERE id::text IN (SELECT (i->>'id') FROM jsonb_array_elements(NEW.items) i);
+
       FOR v_item IN SELECT * FROM jsonb_array_elements(NEW.items)
       LOOP
         v_item_id := v_item->>'id';
         v_item_price := COALESCE((v_item->>'price')::numeric, 0);
         v_item_qty := COALESCE((v_item->>'quantity')::numeric, 0);
 
-        SELECT commission_percent
-          INTO v_item_pct
-          FROM products
-         WHERE id::text = v_item_id;
+        SELECT pct INTO v_item_pct
+          FROM _order_product_rates
+         WHERE product_id = v_item_id;
 
         IF v_item_pct IS NULL THEN
           v_item_pct := v_default_pct;
@@ -646,17 +664,19 @@ BEGIN
 
     SELECT email INTO v_admin_email FROM auth.users WHERE id = auth.uid();
 
-    INSERT INTO commissions (
-      collaborator_id, order_id, amount, type, note, created_by, created_by_email
-    ) VALUES (
-      NEW.collaborator_id,
-      NEW.id,
-      v_total_commission,
-      'order_earned',
-      CASE WHEN v_had_earned THEN 'Tính lại sau khi admin chuyển trạng thái' ELSE NULL END,
-      auth.uid(),
-      v_admin_email
-    );
+    IF NOT v_had_earned THEN
+      INSERT INTO commissions (
+        collaborator_id, order_id, amount, type, note, created_by, created_by_email
+      ) VALUES (
+        NEW.collaborator_id,
+        NEW.id,
+        v_total_commission,
+        'order_earned',
+        NULL,
+        auth.uid(),
+        v_admin_email
+      );
+    END IF;
 
     NEW.commission_amount := v_total_commission;
     NEW.commission_status := 'earned';
@@ -689,19 +709,17 @@ DROP TRIGGER IF EXISTS orders_apply_commission ON orders;
 CREATE TRIGGER orders_apply_commission
 BEFORE UPDATE ON orders
 FOR EACH ROW
-EXECUTE FUNCTION apply_order_commission();
+EXECUTE FUNCTION trg_apply_order_commission();
 
 -- 3.4 Sync profile.commission_balance on commission insert
-CREATE OR REPLACE FUNCTION sync_profile_balance()
+CREATE OR REPLACE FUNCTION trg_sync_profile_balance()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
   UPDATE profiles
-     SET commission_balance = COALESCE((
-           SELECT SUM(amount) FROM commissions WHERE collaborator_id = NEW.collaborator_id
-         ), 0),
+     SET commission_balance = commission_balance + NEW.amount,
          updated_at = now()
    WHERE id = NEW.collaborator_id;
   RETURN NEW;
@@ -712,7 +730,7 @@ DROP TRIGGER IF EXISTS commissions_sync_balance ON commissions;
 CREATE TRIGGER commissions_sync_balance
 AFTER INSERT ON commissions
 FOR EACH ROW
-EXECUTE FUNCTION sync_profile_balance();
+EXECUTE FUNCTION trg_sync_profile_balance();
 
 -- 3.5 Auto-update profiles.updated_at
 CREATE OR REPLACE FUNCTION trg_profiles_updated_at()
@@ -758,9 +776,17 @@ CREATE POLICY profiles_admin_all ON profiles
   WITH CHECK (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
 
 DROP POLICY IF EXISTS profiles_public_referral_read ON profiles;
-CREATE POLICY profiles_public_referral_read ON profiles
-  FOR SELECT
-  USING (referral_code IS NOT NULL);
+
+CREATE OR REPLACE VIEW public_profiles_referral AS
+SELECT id, referral_code, full_name
+  FROM profiles
+ WHERE referral_code IS NOT NULL
+   AND role = 'collaborator'
+   AND status = 'active';
+
+ALTER VIEW public_profiles_referral SET (security_invoker = on);
+
+GRANT SELECT ON public_profiles_referral TO anon, authenticated;
 
 -- commissions policies
 DROP POLICY IF EXISTS commissions_self_read ON commissions;

@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import { Header } from "@/components/Header";
 import { CartDrawer } from "@/components/CartDrawer";
 import { FooterClient } from "@/components/FooterClient";
+import ReferralCapture from "@/components/ReferralCapture";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
@@ -66,6 +67,7 @@ export default function RootLayout({
           {children}
         </div>
         <FooterClient />
+        <ReferralCapture />
       </body>
     </html>
   );

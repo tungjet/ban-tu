@@ -6,6 +6,7 @@ import Link from "next/link";
 import { UserPlus, Loader2, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { signIn } from "next-auth/react";
 import { FormInput } from "@/components/form";
 
 export default function RegisterCTVPage() {
@@ -41,8 +42,19 @@ export default function RegisterCTVPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Đăng ký thất bại");
-      setSuccess(true);
-      toast.success("Đăng ký thành công! Vui lòng chờ admin duyệt.");
+
+      const signInRes = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+      if (signInRes?.error) {
+        toast.success("Đăng ký thành công, vui lòng đăng nhập");
+        router.push("/dang-nhap-ctv");
+      } else {
+        toast.success("Đăng ký thành công");
+        router.push("/cong-tac-vien");
+      }
     } catch (err: any) {
       toast.error(err.message || "Đăng ký thất bại");
     } finally {

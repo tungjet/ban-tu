@@ -25,21 +25,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Số điện thoại không hợp lệ" }, { status: 400 });
   }
 
-  const anon = createClient(supabaseUrl, supabaseAnonKey);
-  const { data: signUpData, error: signUpErr } = await anon.auth.signUp({
+  const service = getServiceClient();
+
+  // Auto-confirm user via admin API (skip email verification)
+  const { data: created, error: createErr } = await service.auth.admin.createUser({
     email,
     password,
-    options: { data: { full_name } },
+    email_confirm: true,
+    user_metadata: { full_name },
   });
 
-  if (signUpErr) {
-    return NextResponse.json({ error: signUpErr.message }, { status: 400 });
+  if (createErr) {
+    return NextResponse.json({ error: createErr.message }, { status: 400 });
   }
-  if (!signUpData.user) {
+  if (!created.user) {
     return NextResponse.json({ error: "Đăng ký thất bại" }, { status: 400 });
   }
 
-  const service = getServiceClient();
+  const signUpData = { user: created.user };
+
   const { error: profileErr } = await service.from("profiles").insert({
     id: signUpData.user.id,
     full_name,

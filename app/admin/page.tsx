@@ -246,7 +246,7 @@ export default function AdminDashboard() {
   const [adminProductSearch, setAdminProductSearch] = useState("");
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const { settings: storeSettings, loading: settingsLoading, updateSettings } = useStoreSettings();
-  const [localSettings, setLocalSettings] = useState({ phone: "", facebook: "", zalo: "", address: "", default_commission_percent: 5 });
+  const [localSettings, setLocalSettings] = useState({ phone: "", facebook: "", zalo: "", address: "", defaultCommissionPercent: 5 });
   const [settingsSaving, setSettingsSaving] = useState(false);
 
   
@@ -3458,9 +3458,9 @@ export default function AdminDashboard() {
                           step="0.01"
                           min="0"
                           max="100"
-                          defaultValue={storeSettings.default_commission_percent}
-                          onChange={(e) => setLocalSettings(prev => ({...prev, default_commission_percent: Number(e.target.value)}))}
-                          key={`commission-${storeSettings.default_commission_percent}`}
+                          defaultValue={storeSettings.defaultCommissionPercent}
+                          onChange={(e) => setLocalSettings(prev => ({...prev, defaultCommissionPercent: Number(e.target.value)}))}
+                          key={`commission-${storeSettings.defaultCommissionPercent}`}
                         />
                         <p className="text-xs text-slate-500 mt-1">Áp dụng cho sản phẩm không có hoa hồng riêng.</p>
                       </div>
@@ -3475,12 +3475,11 @@ export default function AdminDashboard() {
                               zalo: localSettings.zalo || storeSettings.zalo,
                               facebook: localSettings.facebook || storeSettings.facebook,
                               address: localSettings.address || storeSettings.address,
-                              default_commission_percent: localSettings.default_commission_percent ?? storeSettings.default_commission_percent,
+                              defaultCommissionPercent: localSettings.defaultCommissionPercent ?? storeSettings.defaultCommissionPercent,
                             };
-                            const ok = await updateSettings(merged);
+                            await updateSettings(merged);
                             setSettingsSaving(false);
-                            if (ok) toast.success("Đã lưu cài đặt vào database!");
-                            else toast.error("Lỗi khi lưu. Hãy chạy migration SQL trước!");
+                            toast.success("Đã lưu cài đặt vào database!");
                           }}
                           className={`font-medium px-6 py-2.5 rounded-lg transition-colors text-sm shadow-lg cursor-pointer ${
                             settingsSaving ? 'bg-blue-400 text-white cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200'

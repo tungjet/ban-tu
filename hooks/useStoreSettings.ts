@@ -1,96 +1,66 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useState, useCallback } from "react";
 
 export interface StoreSettings {
   phone: string;
   zalo: string;
   facebook: string;
   address: string;
-  default_commission_percent: number;
+  defaultCommissionPercent: number;
 }
 
-const DEFAULT_SETTINGS: StoreSettings = {
+const DEFAULTS: StoreSettings = {
   phone: "",
   zalo: "",
   facebook: "",
   address: "",
-  default_commission_percent: 5,
+  defaultCommissionPercent: 5,
 };
 
-// Cache để tránh fetch nhiều lần
-let cachedSettings: StoreSettings | null = null;
-let cacheTime = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 phút
-
 export function useStoreSettings() {
-  const [settings, setSettings] = useState<StoreSettings>(() => cachedSettings || DEFAULT_SETTINGS);
-  const [loading, setLoading] = useState(() => !cachedSettings);
+  const [settings, setSettings] = useState<StoreSettings>(DEFAULTS);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const now = Date.now();
-    if (cachedSettings && now - cacheTime < CACHE_TTL) {
-      const timer = window.setTimeout(() => setLoading(false), 0);
-      return () => window.clearTimeout(timer);
-    }
-
-    const fetchSettings = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("store_settings")
-          .select("*")
-          .eq("id", "default")
-          .single();
-
-        if (!error && data) {
-          const s: StoreSettings = {
-            phone: data.phone || "",
-            zalo: data.zalo || "",
-            facebook: data.facebook || "",
-            address: data.address || "",
-            default_commission_percent:
-              data.default_commission_percent != null
-                ? Number(data.default_commission_percent)
-                : 5,
-          };
-          cachedSettings = s;
-          cacheTime = Date.now();
-          setSettings(s);
-        }
-      } catch {
-        // Fallback silently if table doesn't exist yet
-      } finally {
-        setLoading(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/store-settings", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setSettings({ ...DEFAULTS, ...data });
       }
-    };
-
-    fetchSettings();
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const updateSettings = async (newSettings: StoreSettings): Promise<boolean> => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const response = await fetch("/api/admin/settings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(newSettings),
-      });
+  useEffect(() => {
+    load();
+  }, [load]);
 
-      if (!response.ok) throw new Error("Failed to update settings");
+  const updateSettings = useCallback(
+    async (patch: Partial<StoreSettings>) => {
+      setSettings((prev) => ({ ...prev, ...patch }));
+      try {
+        const res = await fetch("/api/admin/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(patch),
+        });
+        if (!res.ok) {
+          // revert on error
+          await load();
+        }
+      } catch {
+        await load();
+      }
+    },
+    [load]
+  );
 
-      cachedSettings = newSettings;
-      cacheTime = Date.now();
-      setSettings(newSettings);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  return { settings, loading, updateSettings };
+  return { settings, loading, updateSettings, refresh: load };
 }

@@ -1,32 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin, getServiceClient } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { User } from "@/lib/models/User";
+import { requireAdmin, isErrorResponse } from "@/lib/auth-helpers";
+import { generateUniqueReferralCode } from "@/lib/services/referralCode";
 
 export async function PATCH(
-  request: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await verifyAdmin(request);
-  if (error) return NextResponse.json({ error }, { status: 401 });
-
+  const session = await requireAdmin(req);
+  if (isErrorResponse(session)) return session;
   const { id } = await params;
-  const body = await request.json();
-  const allowed: Record<string, unknown> = {};
-  if (body.status) allowed.status = body.status;
-  if (body.full_name !== undefined) allowed.full_name = body.full_name;
-  if (body.phone !== undefined) allowed.phone = body.phone;
+  const body = await req.json();
 
-  if (Object.keys(allowed).length === 0) {
-    return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+  await connectDB();
+  const profile = await User.findById(id);
+  if (!profile) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const service = getServiceClient();
-  const { data, error: dbErr } = await service
-    .from("profiles")
-    .update(allowed)
-    .eq("id", id)
-    .select()
-    .single();
+  if (body.status) profile.status = body.status;
+  if (body.full_name !== undefined) profile.fullName = body.full_name;
+  if (body.fullName !== undefined) profile.fullName = body.fullName;
+  if (body.phone !== undefined) profile.phone = body.phone;
 
-  if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });
-  return NextResponse.json({ profile: data });
+  if (profile.status === "active" && !profile.referralCode) {
+    profile.referralCode = await generateUniqueReferralCode();
+  }
+
+  await profile.save();
+
+  return NextResponse.json({
+    profile: {
+      id: profile._id.toString(),
+      full_name: profile.fullName,
+      phone: profile.phone,
+      status: profile.status,
+      referral_code: profile.referralCode,
+    },
+  });
 }

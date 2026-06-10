@@ -1,76 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { Comment } from "@/lib/models/Comment";
+import { Product } from "@/lib/models/Product";
+import { requireAdmin, isErrorResponse } from "@/lib/auth-helpers";
 
-export async function GET(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
-
-  const { data, error: dbError } = await supabase
-    .from("comments")
-    .select("*, products(name)")
-    .order("created_at", { ascending: false });
-
-  if (dbError) {
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data || []);
+export async function GET() {
+  await connectDB();
+  const list = await Comment.find().sort({ createdAt: -1 }).lean();
+  const productIds = Array.from(new Set(list.map((c) => c.productId).filter(Boolean)));
+  const products = await Product.find({ _id: { $in: productIds } })
+    .select("name")
+    .lean();
+  const productNameById = new Map(
+    products.map((p) => [p._id.toString(), (p as any).name as string])
+  );
+  const items = list.map((c) => ({
+    id: c._id.toString(),
+    ...c,
+    products: { name: productNameById.get(c.productId) ?? null },
+  }));
+  return NextResponse.json({ comments: items });
 }
 
-export async function POST(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
+export async function POST(req: NextRequest) {
+  const session = await requireAdmin(req);
+  if (isErrorResponse(session)) return session;
 
-  try {
-    const body = await request.json();
-    const { id, ...payload } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: "Missing comment ID" }, { status: 400 });
-    }
-
-    const { data, error: dbError } = await supabase
-      .from("comments")
-      .update(payload)
-      .eq("id", id)
-      .select();
-
-    if (dbError) {
-      return NextResponse.json({ error: dbError.message }, { status: 500 });
-    }
-
-    return NextResponse.json(data?.[0] || null);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
-
+  const body = await req.json();
+  const { id, ...payload } = body;
   if (!id) {
     return NextResponse.json({ error: "Missing comment ID" }, { status: 400 });
   }
 
-  const { data, error: dbError } = await supabase
-    .from("comments")
-    .delete()
-    .eq("id", id)
-    .select();
+  const item = await Comment.findByIdAndUpdate(id, payload, { new: true }).lean();
+  if (!item) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  return NextResponse.json({ comment: { id: (item as any)._id.toString(), ...(item as any) } });
+}
 
-  if (dbError) {
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
+export async function DELETE(req: NextRequest) {
+  const session = await requireAdmin(req);
+  if (isErrorResponse(session)) return session;
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "Missing comment ID" }, { status: 400 });
   }
 
-  return NextResponse.json(data?.[0] || null);
+  const deleted = await Comment.findByIdAndDelete(id).lean();
+  if (!deleted) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  return NextResponse.json({ comment: { id: deleted._id.toString(), ...deleted } });
 }

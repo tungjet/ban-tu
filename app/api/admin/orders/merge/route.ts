@@ -1,58 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { Order } from "@/lib/models/Order";
+import { OrderLog } from "@/lib/models/OrderLog";
+import { requireAdmin, isErrorResponse } from "@/lib/auth-helpers";
 
-export async function POST(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
+export async function POST(req: NextRequest) {
+  const session = await requireAdmin(req);
+  if (isErrorResponse(session)) return session;
+
+  const {
+    primaryOrderId,
+    mergedItems,
+    mergedTotal,
+    mergeNote,
+    secondaryOrderIds,
+    logPayload,
+  } = await req.json();
+
+  await connectDB();
+
+  const primary = await Order.findByIdAndUpdate(primaryOrderId, {
+    items: mergedItems,
+    totalAmount: mergedTotal,
+    note: mergeNote,
+  });
+  if (!primary) {
+    return NextResponse.json({ error: "Primary order not found" }, { status: 404 });
   }
 
-  try {
-    const {
-      primaryOrderId,
-      mergedItems,
-      mergedTotal,
-      mergeNote,
-      secondaryOrderIds,
-      logPayload,
-    } = await request.json();
-
-    const { error: updateError } = await supabase
-      .from("orders")
-      .update({
-        items: mergedItems,
-        total_amount: mergedTotal,
-        note: mergeNote,
-      })
-      .eq("id", primaryOrderId);
-
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
-
-    const { error: deleteError } = await supabase
-      .from("orders")
-      .update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: logPayload.changed_by,
-        deleted_by_email: logPayload.changed_by_email,
-      })
-      .in("id", secondaryOrderIds);
-
-    if (deleteError) {
-      return NextResponse.json({ error: deleteError.message }, { status: 500 });
-    }
-
-    const { error: logError } = await supabase
-      .from("order_logs")
-      .insert([logPayload]);
-
-    if (logError) {
-      console.warn("Log creation warning:", logError.message);
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  if (Array.isArray(secondaryOrderIds) && secondaryOrderIds.length > 0) {
+    await Order.updateMany(
+      { _id: { $in: secondaryOrderIds } },
+      {
+        deletedAt: new Date(),
+        deletedBy: logPayload?.changedBy ?? session.id,
+        deletedByEmail: logPayload?.changedByEmail ?? session.email,
+      }
+    );
   }
+
+  if (logPayload) {
+    await OrderLog.create({
+      ...logPayload,
+      changedBy: logPayload.changedBy ?? session.id,
+      changedByEmail: logPayload.changedByEmail ?? session.email,
+    });
+  }
+
+  return NextResponse.json({ success: true });
 }

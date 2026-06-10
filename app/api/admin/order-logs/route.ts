@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { OrderLog } from "@/lib/models/OrderLog";
+import { requireAdmin, isErrorResponse } from "@/lib/auth-helpers";
 
-export async function GET(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
+export async function GET() {
+  const session = await requireAdmin(new NextRequest(new Request("http://localhost")));
+  if (isErrorResponse(session)) return session;
 
-  const { data, error: dbError } = await supabase
-    .from("order_logs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  if (dbError) {
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data || []);
+  await connectDB();
+  const logs = await OrderLog.find().sort({ createdAt: -1 }).limit(100).lean();
+  return NextResponse.json({ logs });
 }

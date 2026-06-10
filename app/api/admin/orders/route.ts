@@ -1,54 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { Order } from "@/lib/models/Order";
+import { requireAdmin, isErrorResponse } from "@/lib/auth-helpers";
 
-export async function GET(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
+export async function GET() {
+  const session = await requireAdmin(new NextRequest(new Request("http://localhost")));
+  if (isErrorResponse(session)) return session;
 
-  let { data, error: dbError } = await supabase
-    .from("orders")
-    .select("*")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (dbError?.code === "42703") {
-    const fallback = await supabase
-      .from("orders")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    data = fallback.data;
-    dbError = fallback.error;
-  }
-
-  if (dbError) {
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data || []);
+  await connectDB();
+  const orders = await Order.find({ deletedAt: null })
+    .sort({ createdAt: -1 })
+    .lean();
+  return NextResponse.json({ orders });
 }
 
-export async function POST(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
+export async function POST(req: NextRequest) {
+  const session = await requireAdmin(req);
+  if (isErrorResponse(session)) return session;
 
-  try {
-    const body = await request.json();
-    const { data, error: dbError } = await supabase
-      .from("orders")
-      .insert([body])
-      .select();
+  const body = await req.json();
+  const orderCode =
+    body.orderCode || `BT-${Math.floor(100000 + Math.random() * 900000)}`;
 
-    if (dbError) {
-      return NextResponse.json({ error: dbError.message }, { status: 500 });
-    }
-
-    return NextResponse.json(data?.[0] || null);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
-  }
+  await connectDB();
+  const order = await Order.create({
+    ...body,
+    orderCode,
+    createdBy: session.id,
+    createdByEmail: session.email,
+  });
+  return NextResponse.json({ order });
 }

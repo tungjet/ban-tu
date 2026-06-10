@@ -1,28 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { StoreSettings } from "@/lib/models/StoreSettings";
+import { requireAdmin, isErrorResponse } from "@/lib/auth-helpers";
 
-export async function POST(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
+export async function GET() {
+  await connectDB();
+  const settings = await StoreSettings.findOne({ singleton: "default" }).lean();
+  return NextResponse.json({ settings });
+}
 
-  try {
-    const body = await request.json();
-    const { error: dbError } = await supabase
-      .from("store_settings")
-      .upsert({
-        id: "default",
-        ...body,
-        updated_at: new Date().toISOString(),
-      });
+export async function PATCH(req: NextRequest) {
+  const session = await requireAdmin(req);
+  if (isErrorResponse(session)) return session;
 
-    if (dbError) {
-      return NextResponse.json({ error: dbError.message }, { status: 500 });
-    }
+  const body = await req.json();
+  const { id: _ignored, ...payload } = body;
 
-    return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
-  }
+  await connectDB();
+  const settings = await StoreSettings.findOneAndUpdate(
+    { singleton: "default" },
+    { $set: payload, $setOnInsert: { singleton: "default" } },
+    { new: true, upsert: true }
+  );
+  return NextResponse.json({ settings });
 }

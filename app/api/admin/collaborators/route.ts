@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin, getServiceClient } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { User } from "@/lib/models/User";
+import { requireAdmin, isErrorResponse } from "@/lib/auth-helpers";
 
-export async function GET(request: NextRequest) {
-  const { error } = await verifyAdmin(request);
-  if (error) return NextResponse.json({ error }, { status: 401 });
+export async function GET() {
+  const session = await requireAdmin(new NextRequest(new Request("http://localhost")));
+  if (isErrorResponse(session)) return session;
 
-  const service = getServiceClient();
-  const { data, error: dbErr } = await service
-    .from("profiles")
-    .select("id, full_name, phone, role, status, referral_code, commission_balance, created_at")
-    .eq("role", "collaborator")
-    .order("created_at", { ascending: false });
+  await connectDB();
+  const collaborators = await User.find({ role: "collaborator" })
+    .select("fullName phone role status referralCode commissionBalance createdAt")
+    .sort({ createdAt: -1 })
+    .lean();
 
-  if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });
-  const rows = (data || []).map((r) => ({ ...r, email: null }));
+  const rows = collaborators.map((u) => ({
+    id: (u as any)._id.toString(),
+    full_name: u.fullName,
+    phone: u.phone,
+    role: u.role,
+    status: u.status,
+    referral_code: u.referralCode,
+    commission_balance: u.commissionBalance,
+    created_at: (u as any).createdAt,
+    email: null,
+  }));
   return NextResponse.json({ collaborators: rows });
 }

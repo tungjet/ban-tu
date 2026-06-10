@@ -1,80 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { Testimonial } from "@/lib/models/Testimonial";
+import { requireAdmin, isErrorResponse } from "@/lib/auth-helpers";
+import { serializeAll } from "@/lib/serialize";
 
-export async function GET(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
-
-  const { data, error: dbError } = await supabase
-    .from("testimonials")
-    .select("*")
-    .order("display_order", { ascending: true });
-
-  if (dbError) {
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data || []);
+export async function GET() {
+  await connectDB();
+  const list = await Testimonial.find().sort({ displayOrder: 1 }).lean();
+  return NextResponse.json({ testimonials: list });
 }
 
-export async function POST(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
+export async function POST(req: NextRequest) {
+  const session = await requireAdmin(req);
+  if (isErrorResponse(session)) return session;
 
-  try {
-    const body = await request.json();
-    const { id, ...payload } = body;
-
-    let result;
-    if (id) {
-      result = await supabase
-        .from("testimonials")
-        .update(payload)
-        .eq("id", id)
-        .select();
-    } else {
-      result = await supabase
-        .from("testimonials")
-        .insert([payload])
-        .select();
-    }
-
-    if (result.error) {
-      return NextResponse.json({ error: result.error.message }, { status: 500 });
-    }
-
-    return NextResponse.json(result.data?.[0] || null);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
-  }
+  const body = await req.json();
+  const t = await Testimonial.create(body);
+  return NextResponse.json({ testimonial: t });
 }
 
-export async function DELETE(request: NextRequest) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
+export async function DELETE(req: NextRequest) {
+  const session = await requireAdmin(req);
+  if (isErrorResponse(session)) return session;
 
-  const { searchParams } = new URL(request.url);
+  const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
-
   if (!id) {
     return NextResponse.json({ error: "Missing testimonial ID" }, { status: 400 });
   }
 
-  const { data, error: dbError } = await supabase
-    .from("testimonials")
-    .delete()
-    .eq("id", id)
-    .select();
-
-  if (dbError) {
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
+  const deleted = await Testimonial.findByIdAndDelete(id).lean();
+  if (!deleted) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-
-  return NextResponse.json(data?.[0] || null);
+  return NextResponse.json({ testimonial: { id: deleted._id.toString(), ...deleted } });
 }

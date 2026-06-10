@@ -1,53 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/api-auth";
+import { connectDB } from "@/lib/db";
+import { Order } from "@/lib/models/Order";
+import { requireAdmin, isErrorResponse } from "@/lib/auth-helpers";
+import { applyOrderStatusCommission } from "@/lib/services/commission";
 
 export async function PATCH(
-  request: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
-
+  const session = await requireAdmin(req);
+  if (isErrorResponse(session)) return session;
   const { id } = await params;
-  try {
-    const body = await request.json();
-    const { data, error: dbError } = await supabase
-      .from("orders")
-      .update(body)
-      .eq("id", id)
-      .select();
+  const body = await req.json();
 
-    if (dbError) {
-      return NextResponse.json({ error: dbError.message }, { status: 500 });
-    }
+  await connectDB();
+  const prev = await Order.findById(id);
+  if (!prev) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    return NextResponse.json(data?.[0] || null);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  const prevStatus = prev.status;
+  Object.assign(prev, body, {
+    updatedBy: session.id,
+    updatedByEmail: session.email,
+  });
+  await prev.save();
+
+  if (body.status && body.status !== prevStatus) {
+    await applyOrderStatusCommission(id, body.status, prevStatus, {
+      userId: session.id,
+      userEmail: session.email,
+    });
   }
+
+  return NextResponse.json({ order: prev });
 }
 
 export async function DELETE(
-  request: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error, supabase } = await verifyAdmin(request);
-  if (error || !supabase) {
-    return NextResponse.json({ error: error || "Unauthorized" }, { status: 401 });
-  }
-
+  const session = await requireAdmin(req);
+  if (isErrorResponse(session)) return session;
   const { id } = await params;
-  const { data, error: dbError } = await supabase
-    .from("orders")
-    .delete()
-    .eq("id", id)
-    .select();
 
-  if (dbError) {
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
+  await connectDB();
+  const updated = await Order.findByIdAndUpdate(id, {
+    deletedAt: new Date(),
+    deletedBy: session.id,
+    deletedByEmail: session.email,
+  });
+  if (!updated) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-
-  return NextResponse.json(data?.[0] || null);
+  return NextResponse.json({ ok: true });
 }

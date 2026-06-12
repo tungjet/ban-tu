@@ -11,10 +11,11 @@ export interface CurrentUserState {
     role: "admin" | "collaborator" | "customer";
     status: "pending" | "active" | "banned";
   } | null;
+  profile: any;
   isLoading: boolean;
   isAdmin: boolean;
   isCollaborator: boolean;
-  refresh: () => void;
+  refresh: () => Promise<unknown>;
 }
 
 export function useCurrentUser(): CurrentUserState {
@@ -23,10 +24,13 @@ export function useCurrentUser(): CurrentUserState {
   return useMemo(
     () => ({
       user,
+      profile: user,
       isLoading: status === "loading",
       isAdmin: user?.role === "admin",
-      isCollaborator: user?.role === "collaborator" && user?.status === "active",
-      refresh: () => update(),
+      isCollaborator: user?.role === "collaborator" && user?.status !== "banned",
+      refresh: async () => {
+        await update();
+      },
     }),
     [data, status, update, user]
   );

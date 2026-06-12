@@ -33,7 +33,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   session: { strategy: "jwt" },
-  pages: { signIn: "/dang-nhap-ctv" },
+  pages: { signIn: "/dang-nhap" },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {

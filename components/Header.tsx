@@ -175,6 +175,14 @@ export function Header() {
 
             {!currentUser && (
               <Link
+                href="/dang-nhap"
+                className="hidden sm:inline-flex text-sm font-medium text-blue-600 hover:text-blue-700 whitespace-nowrap"
+              >
+                Đăng nhập
+              </Link>
+            )}
+            {!currentUser && (
+              <Link
                 href="/dang-ky-ctv"
                 className="hidden sm:inline-flex text-sm font-medium text-blue-600 hover:text-blue-700 whitespace-nowrap"
               >
@@ -271,6 +279,15 @@ export function Header() {
           >
             <UserIcon className="w-5 h-5" /> Tài khoản
           </Link>
+          {!currentUser && (
+            <Link
+              href="/dang-nhap"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-blue-600 hover:bg-blue-50 font-medium transition-colors"
+            >
+              Đăng nhập
+            </Link>
+          )}
           {!currentUser && (
             <Link
               href="/dang-ky-ctv"

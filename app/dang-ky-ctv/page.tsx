@@ -51,7 +51,7 @@ export default function RegisterCTVPage() {
       });
       if (signInRes?.error) {
         toast.success("Đăng ký thành công, vui lòng đăng nhập");
-        router.push("/dang-nhap-ctv");
+        router.push("/dang-nhap");
       } else {
         toast.success("Đăng ký thành công");
         router.push("/cong-tac-vien");
@@ -99,7 +99,7 @@ export default function RegisterCTVPage() {
         </button>
 
         <p className="text-center text-sm text-slate-500">
-          Đã có tài khoản? <Link href="/dang-nhap-ctv" className="text-blue-600 hover:underline">Đăng nhập</Link>
+          Đã có tài khoản? <Link href="/dang-nhap" className="text-blue-600 hover:underline">Đăng nhập</Link>
         </p>
       </form>
     </main>
